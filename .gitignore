@@ -45,5 +45,10 @@ npm-debug.log*
 
 # Claude Code
 .claude/
+.agents/
 openspec/
 .codegraph/
+
+
+# lockfile
+skills-lock.json
