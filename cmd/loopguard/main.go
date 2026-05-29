@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"LoopGuard/internal/cli"
+
 	"github.com/spf13/cobra"
 )
 
@@ -12,7 +14,7 @@ func main() {
 		Use:   "loopguard",
 		Short: "LoopGuard - AI 危险操作人工审批卡点平台",
 	}
-	// 子命令在后续 Task 注册：root.AddCommand(...)
+	root.AddCommand(cli.ServeCmd(), cli.MigrateCmd(), cli.AdminCmd(), cli.APIKeyCmd())
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
