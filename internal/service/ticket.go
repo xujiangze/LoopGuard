@@ -130,3 +130,75 @@ func errString(e error) string {
 	}
 	return e.Error()
 }
+
+func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) (*model.Ticket, error) {
+	tk, err := svc.store.GetTicket(ticketID)
+	if err != nil {
+		return nil, errors.New("工单不存在")
+	}
+	if tk.ApproverID != userID {
+		return nil, errors.New("无权审批：你不是该工单的指定审批人")
+	}
+	if !model.CanTransition(tk.Status, model.StatusApproved) {
+		return nil, errors.New("当前状态不可审批：" + string(tk.Status))
+	}
+
+	now := time.Now()
+	tk.Status = model.StatusApproved
+	tk.ApprovedBy = &userID
+	tk.ApprovedAt = &now
+	_ = svc.store.UpdateTicket(tk)
+
+	p, err := svc.store.GetProgram(tk.ProgramID)
+	if err != nil {
+		return nil, err
+	}
+
+	tk.Status = model.StatusExecuting
+	_ = svc.store.UpdateTicket(tk)
+
+	var args map[string]any
+	_ = json.Unmarshal(tk.Args, &args)
+	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
+		BinaryPath: p.BinaryPath, Args: buildArgs(args), DryRun: false,
+		TimeoutSec: p.TimeoutSec, WorkDir: ".",
+	})
+
+	start := now
+	exe := &model.Execution{TicketID: tk.ID, Kind: model.ExecKindReal, StartedAt: &start}
+	if res != nil {
+		exe.Command = res.Command
+		exe.ExitCode = res.ExitCode
+		exe.Stdout = res.Stdout
+		exe.Stderr = res.Stderr
+		exe.DurationMs = int(res.DurationMs)
+	}
+	fin := time.Now()
+	exe.FinishedAt = &fin
+	_ = svc.store.CreateExecution(exe)
+
+	if runErr != nil || res == nil || res.ExitCode != 0 || res.TimedOut {
+		tk.Status = model.StatusExecFailed
+	} else {
+		tk.Status = model.StatusDone
+	}
+	_ = svc.store.UpdateTicket(tk)
+	return tk, nil
+}
+
+func (svc *TicketService) Reject(ticketID, userID uint64, reason string) (*model.Ticket, error) {
+	tk, err := svc.store.GetTicket(ticketID)
+	if err != nil {
+		return nil, errors.New("工单不存在")
+	}
+	if tk.ApproverID != userID {
+		return nil, errors.New("无权操作：你不是该工单的指定审批人")
+	}
+	if !model.CanTransition(tk.Status, model.StatusRejected) {
+		return nil, errors.New("当前状态不可驳回：" + string(tk.Status))
+	}
+	tk.Status = model.StatusRejected
+	tk.RejectReason = reason
+	_ = svc.store.UpdateTicket(tk)
+	return tk, nil
+}
