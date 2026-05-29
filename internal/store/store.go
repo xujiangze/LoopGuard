@@ -33,6 +33,9 @@ func (s *Store) GetUser(id uint64) (*model.User, error) {
 	err := s.db.First(&u, id).Error
 	return &u, err
 }
+func (s *Store) UpdateUserPassword(id uint64, hash string) error {
+	return s.db.Model(&model.User{}).Where("id = ?", id).Update("password_hash", hash).Error
+}
 
 // API Keys
 func (s *Store) CreateAPIKey(k *model.APIKey) error { return s.db.Create(k).Error }
@@ -46,6 +49,8 @@ func (s *Store) GetAPIKeyByHash(hash string) (*model.APIKey, error) {
 	err := s.db.Where("key_hash = ? AND enabled = ?", hash, true).First(&k).Error
 	return &k, err
 }
+func (s *Store) UpdateAPIKey(k *model.APIKey) error { return s.db.Save(k).Error }
+func (s *Store) DeleteAPIKey(id uint64) error       { return s.db.Delete(&model.APIKey{}, id).Error }
 
 // Programs
 func (s *Store) CreateProgram(p *model.Program) error { return s.db.Create(p).Error }

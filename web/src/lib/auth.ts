@@ -4,6 +4,7 @@ const USER_KEY = "lg_user"
 interface UserInfo {
   user_id: number
   role: string
+  username: string
 }
 
 export function getToken(): string | null {

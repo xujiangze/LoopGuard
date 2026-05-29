@@ -21,7 +21,9 @@ func NewRouter(d Deps) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -57,6 +59,9 @@ func NewRouter(d Deps) *gin.Engine {
 	adminGrp.GET("/users", admin.ListUsers)
 	adminGrp.POST("/api-keys", admin.CreateAPIKey)
 	adminGrp.GET("/api-keys", admin.ListAPIKeys)
+	adminGrp.PUT("/api-keys/:id", admin.UpdateAPIKey)
+	adminGrp.DELETE("/api-keys/:id", admin.DeleteAPIKey)
+	adminGrp.PUT("/users/:id/password", admin.ResetPassword)
 
 	return r
 }

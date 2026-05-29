@@ -141,3 +141,50 @@ func (h *AdminHandler) UpdateProgram(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, p)
 }
+
+func (h *AdminHandler) UpdateAPIKey(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var k model.APIKey
+	if err := h.store.DB().First(&k, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "API Key 不存在"})
+		return
+	}
+	var req struct {
+		Enabled *bool `json:"enabled"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if req.Enabled != nil {
+		k.Enabled = *req.Enabled
+	}
+	if err := h.store.UpdateAPIKey(&k); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, k)
+}
+
+func (h *AdminHandler) DeleteAPIKey(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err := h.store.DeleteAPIKey(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+}
+
+func (h *AdminHandler) ResetPassword(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	var req struct {
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	hash, _ := auth.HashPassword(req.Password)
+	if err := h.store.UpdateUserPassword(id, hash); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "密码已重置"})
+}

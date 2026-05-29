@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
 const NAV_ITEMS = [
@@ -14,8 +15,9 @@ const ADMIN_ITEMS = [
 ]
 
 export function Layout() {
-  const { role, logout } = useAuth()
+  const { role, username, logout } = useAuth()
   const location = useLocation()
+  const initial = username ? username.charAt(0).toUpperCase() : "?"
 
   const isActive = (path: string) => location.pathname === path
 
@@ -59,8 +61,14 @@ export function Layout() {
         </nav>
       </aside>
       <div className="flex-1 flex flex-col">
-        <header className="h-12 border-b flex items-center justify-end px-4 gap-2">
-          <span className="text-sm text-muted-foreground">角色: {role}</span>
+        <header className="h-12 border-b flex items-center justify-end px-4 gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+              {initial}
+            </div>
+            <span className="text-sm font-medium">{username}</span>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{role}</Badge>
+          </div>
           <Button variant="ghost" size="sm" onClick={logout}>
             退出
           </Button>

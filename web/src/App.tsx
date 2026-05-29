@@ -9,6 +9,7 @@ import { TicketDetailPage } from "@/pages/TicketDetailPage"
 import { ProgramPage } from "@/pages/ProgramPage"
 import { UserPage } from "@/pages/UserPage"
 import { ApiKeyPage } from "@/pages/ApiKeyPage"
+import { Toaster } from "@/components/ui/sonner"
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
             />
           </Route>
         </Routes>
+        <Toaster richColors position="top-right" />
       </HashRouter>
     </AuthProvider>
   )

@@ -42,7 +42,7 @@ func (h *HumanHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "签发 token 失败"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": tok, "role": u.Role, "user_id": u.ID})
+	c.JSON(http.StatusOK, gin.H{"token": tok, "role": u.Role, "user_id": u.ID, "username": u.Username})
 }
 
 func (h *HumanHandler) effectiveApprover(c *gin.Context, tk *model.Ticket) uint64 {
