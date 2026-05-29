@@ -17,7 +17,7 @@ import (
 )
 
 func testStore(t *testing.T) *store.Store {
-	db, _ := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	db, _ := gorm.Open(sqlite.Open(""), &gorm.Config{})
 	s := store.New(db)
 	require.NoError(t, s.AutoMigrate())
 	return s
