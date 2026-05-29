@@ -45,6 +45,24 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"id": u.ID, "username": u.Username, "role": u.Role})
 }
 
+func (h *AdminHandler) ListUsers(c *gin.Context) {
+	var users []model.User
+	if err := h.store.DB().Order("id asc").Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *AdminHandler) ListAPIKeys(c *gin.Context) {
+	var keys []model.APIKey
+	if err := h.store.DB().Order("id desc").Find(&keys).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, keys)
+}
+
 func (h *AdminHandler) CreateAPIKey(c *gin.Context) {
 	var req struct {
 		Name string `json:"name" binding:"required"`

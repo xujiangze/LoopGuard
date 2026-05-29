@@ -45,6 +45,22 @@ func JWTAuth(secret string) gin.HandlerFunc {
 	}
 }
 
+func APIKeyOrJWTAuth(s *store.Store, secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Try API Key first
+		if plain := c.GetHeader("X-API-Key"); plain != "" {
+			k, err := s.GetAPIKeyByHash(auth.HashAPIKey(plain))
+			if err == nil {
+				c.Set("api_key_id", k.ID)
+				c.Next()
+				return
+			}
+		}
+		// Fall back to JWT
+		JWTAuth(secret)(c)
+	}
+}
+
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetString("role") != "admin" {

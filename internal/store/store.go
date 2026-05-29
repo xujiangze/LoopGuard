@@ -36,6 +36,11 @@ func (s *Store) GetUser(id uint64) (*model.User, error) {
 
 // API Keys
 func (s *Store) CreateAPIKey(k *model.APIKey) error { return s.db.Create(k).Error }
+func (s *Store) ListAPIKeys() ([]model.APIKey, error) {
+	var ks []model.APIKey
+	err := s.db.Order("id desc").Find(&ks).Error
+	return ks, err
+}
 func (s *Store) GetAPIKeyByHash(hash string) (*model.APIKey, error) {
 	var k model.APIKey
 	err := s.db.Where("key_hash = ? AND enabled = ?", hash, true).First(&k).Error

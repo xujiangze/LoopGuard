@@ -86,6 +86,26 @@ func (h *HumanHandler) Reject(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
+func (h *HumanHandler) GetTicket(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	tk, err := h.store.GetTicket(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "工单不存在"})
+		return
+	}
+	c.JSON(http.StatusOK, tk)
+}
+
+func (h *HumanHandler) ListExecutions(c *gin.Context) {
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	es, err := h.store.ListExecutionsByTicket(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, es)
+}
+
 func (h *HumanHandler) ListMine(c *gin.Context) {
 	uid := c.GetUint64("user_id")
 	status := model.TicketStatus(c.Query("status"))
