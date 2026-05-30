@@ -52,3 +52,9 @@ openspec/
 
 # lockfile
 skills-lock.json
+
+# 私人测试目录
+xjz_test/
+
+# 工具缓存
+.superpowers/
