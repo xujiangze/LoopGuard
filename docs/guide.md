@@ -1,6 +1,7 @@
 # LoopGuard 使用导引
 
-LoopGuard 是 AI agent 危险操作的人工审批卡点服务。AI 通过 API Key 提交工单，系统自动执行 `--only-print` dry-run 校验，通过后由指定审批人放行，最终沙盒执行。
+LoopGuard 是 AI agent 危险操作的人工审批卡点服务。AI 通过 API Key 提交工单，系统自动执行 `--only-print` dry-run
+校验，通过后由指定审批人放行，最终沙盒执行。
 
 ## 快速开始
 
@@ -21,17 +22,17 @@ mysql -u root -e "CREATE DATABASE loopguard CHARACTER SET utf8mb4;"
 ```bash
 export LOOPGUARD_DB_DSN="root:@tcp(127.0.0.1:3306)/loopguard?parseTime=true"
 export LOOPGUARD_JWT_SECRET="your-random-secret-here"
-export LOOPGUARD_BASE_URL="http://your-server:8080"
+export LOOPGUARD_BASE_URL="http://localhost:8080"
 ```
 
-| 环境变量 | 默认值 | 说明 |
-|---|---|---|
-| `LOOPGUARD_HTTP_ADDR` | `:8080` | HTTP 监听地址 |
-| `LOOPGUARD_DB_DSN` | _(空)_ | MySQL DSN，必填 |
-| `LOOPGUARD_JWT_SECRET` | `dev-insecure-secret-change-me` | JWT 签名密钥，生产环境务必修改 |
-| `LOOPGUARD_BASE_URL` | `http://localhost:8080` | 服务外部地址，用于拼审批链接 |
-| `LOOPGUARD_EXECUTOR_TYPE` | `process` | 执行器类型（当前仅 `process`） |
-| `LOOPGUARD_WORKSPACE_DIR` | `./workspace` | 工作目录 |
+| 环境变量                      | 默认值                             | 说明                   |
+|---------------------------|---------------------------------|----------------------|
+| `LOOPGUARD_HTTP_ADDR`     | `:8080`                         | HTTP 监听地址            |
+| `LOOPGUARD_DB_DSN`        | _(空)_                           | MySQL DSN，必填         |
+| `LOOPGUARD_JWT_SECRET`    | `dev-insecure-secret-change-me` | JWT 签名密钥，生产环境务必修改    |
+| `LOOPGUARD_BASE_URL`      | `http://localhost:8080`         | 服务外部地址，用于拼审批链接       |
+| `LOOPGUARD_EXECUTOR_TYPE` | `process`                       | 执行器类型（当前仅 `process`） |
+| `LOOPGUARD_WORKSPACE_DIR` | `./workspace`                   | 工作目录                 |
 
 ### 4. 初始化
 
@@ -40,7 +41,7 @@ export LOOPGUARD_BASE_URL="http://your-server:8080"
 ./loopguard migrate
 
 # 创建首个管理员
-./loopguard admin create-user --username root --password <密码> --admin
+./loopguard admin create-user --username root --password admin123 --admin
 
 # 创建 AI 服务账号 Key（明文只显示一次，请保存）
 ./loopguard apikey create --name my-agent
@@ -72,11 +73,11 @@ loopguard apikey       # API Key 管理
 
 所有接口前缀 `/api/v1`。认证方式分三种：
 
-| 角色 | 认证方式 | Header |
-|---|---|---|
-| AI Agent | API Key | `X-API-Key: lg_xxxxxxxx` |
-| 人类审批人 | JWT | `Authorization: Bearer <token>` |
-| 管理员 | JWT + admin 角色 | `Authorization: Bearer <token>` |
+| 角色       | 认证方式           | Header                          |
+|----------|----------------|---------------------------------|
+| AI Agent | API Key        | `X-API-Key: lg_xxxxxxxx`        |
+| 人类审批人    | JWT            | `Authorization: Bearer <token>` |
+| 管理员      | JWT + admin 角色 | `Authorization: Bearer <token>` |
 
 ---
 
@@ -117,18 +118,20 @@ loopguard apikey       # API Key 管理
 
 #### 登录
 
-```
-POST /api/v1/auth/login
-```
-
-```json
-{ "username": "root", "password": "your-password" }
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"root","password":"your-password"}'
 ```
 
 响应：
 
 ```json
-{ "token": "eyJhbG...", "role": "admin", "user_id": 1 }
+{
+  "token": "eyJhbG...",
+  "role": "admin",
+  "user_id": 1
+}
 ```
 
 ---
@@ -137,17 +140,11 @@ POST /api/v1/auth/login
 
 #### 提交工单
 
-```
-POST /api/v1/tickets
-X-API-Key: lg_xxxxxxxx
-```
-
-```json
-{
-  "project": "my-project",
-  "name": "deploy",
-  "args": { "env": "prod", "region": "us-east-1" }
-}
+```bash
+curl -X POST http://localhost:8080/api/v1/tickets \
+  -H "X-API-Key: lg_xxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"project":"my-project","name":"deploy","args":{"env":"prod","region":"us-east-1"}}'
 ```
 
 响应（dry-run 通过）：
@@ -156,8 +153,8 @@ X-API-Key: lg_xxxxxxxx
 {
   "ticket_id": 1,
   "status": "pending_approval",
-  "approval_url": "http://your-server:8080/tickets/1",
-  "next_action": "任务已提交，需人工审批。请通知用户访问审批链接 http://your-server:8080/tickets/1 找审批人审批。审批通过后任务将自动执行，你可轮询 GET /api/v1/tickets/1 获取结果。"
+  "approval_url": "http://localhost:8080/tickets/1",
+  "next_action": "任务已提交，需人工审批。请通知用户访问审批链接 http://localhost:8080/tickets/1 找审批人审批。审批通过后任务将自动执行，你可轮询 GET /api/v1/tickets/1 获取结果。"
 }
 ```
 
@@ -167,7 +164,7 @@ X-API-Key: lg_xxxxxxxx
 {
   "ticket_id": 2,
   "status": "dryrun_failed",
-  "approval_url": "http://your-server:8080/tickets/2",
+  "approval_url": "http://localhost:8080/tickets/2",
   "next_action": "dry-run 校验未通过，任务未进入审批。请检查程序是否正确实现 --only-print（需输出 DRYRUN-OK 且退出码为 0）。详情见 dryrun_output。",
   "dryrun_output": "no marker\n---\n校验失败：dry-run 输出缺少 DRYRUN-OK 标记"
 }
@@ -175,25 +172,48 @@ X-API-Key: lg_xxxxxxxx
 
 #### 轮询工单状态
 
-```
-GET /api/v1/tickets/:id
-X-API-Key: lg_xxxxxxxx
+```bash
+curl http://localhost:8080/api/v1/tickets/1 \
+  -H "X-API-Key: lg_xxxxxxxx"
 ```
 
-响应：
+响应（执行成功）：
 
 ```json
 {
   "id": 1,
   "program_id": 1,
   "status": "done",
-  "args": {"env":"prod"},
+  "args": {
+    "env": "prod"
+  },
   "dryrun_output": "DRYRUN-OK\nwill deploy to prod",
+  "exec_output": "Deploying to prod...",
   "approved_by": 2,
   "approved_at": "2026-05-29T10:30:00Z",
   "created_at": "2026-05-29T10:29:50Z"
 }
 ```
+
+响应（执行失败）：
+
+```json
+{
+  "id": 2,
+  "program_id": 1,
+  "status": "exec_failed",
+  "exec_output": "Error: connection refused",
+  "created_at": "2026-05-29T10:29:50Z"
+}
+```
+
+`status` 字段含义：
+
+| status | 含义 |
+|---|---|
+| `executing` | 正在执行中，继续轮询 |
+| `done` | 执行成功 |
+| `exec_failed` | 执行失败 |
 
 ---
 
@@ -201,31 +221,27 @@ X-API-Key: lg_xxxxxxxx
 
 #### 查看我的待审批列表
 
+```bash
+curl "http://localhost:8080/api/v1/tickets?status=pending_approval" \
+  -H "Authorization: Bearer <token>"
 ```
-GET /api/v1/tickets
-Authorization: Bearer <token>
-```
-
-可选查询参数：`?status=pending_approval`
 
 #### 审批通过
 
-```
-POST /api/v1/tickets/:id/approve
-Authorization: Bearer <token>
+```bash
+curl -X POST http://localhost:8080/api/v1/tickets/1/approve \
+  -H "Authorization: Bearer <token>"
 ```
 
 审批通过后系统自动去掉 `--only-print` 参数执行真实命令。
 
 #### 驳回
 
-```
-POST /api/v1/tickets/:id/reject
-Authorization: Bearer <token>
-```
-
-```json
-{ "reason": "风险过高，需要进一步评估" }
+```bash
+curl -X POST http://localhost:8080/api/v1/tickets/1/reject \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"风险过高，需要进一步评估"}'
 ```
 
 ---
@@ -234,68 +250,67 @@ Authorization: Bearer <token>
 
 #### 注册程序
 
-```
-POST /api/v1/programs
-Authorization: Bearer <admin-token>
-```
-
-```json
-{
-  "project": "my-project",
-  "name": "deploy",
-  "binary_path": "/usr/local/bin/my-deploy-tool",
-  "approver_id": 2,
-  "timeout_sec": 300,
-  "params_schema": { "env": "string", "region": "string" }
-}
+```bash
+curl -X POST http://localhost:8080/api/v1/programs \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project": "my-project",
+    "name": "deploy",
+    "binary_path": "/usr/local/bin/my-deploy-tool",
+    "approver_id": 2,
+    "timeout_sec": 300,
+    "params_schema": {
+      "env": "string",
+      "region": "string"
+    }
+  }'
 ```
 
 注册时系统自动执行 `binary_path --help` 探测程序是否支持 `--only-print` 参数。不支持的程序将被拒绝注册。
 
 #### 查看程序列表
 
-```
-GET /api/v1/programs
-Authorization: Bearer <admin-token>
+```bash
+curl http://localhost:8080/api/v1/programs \
+  -H "Authorization: Bearer <admin-token>"
 ```
 
 #### 更新程序配置
 
-```
-PUT /api/v1/programs/:id
-Authorization: Bearer <admin-token>
-```
-
-```json
-{ "enabled": false, "timeout_sec": 600 }
+```bash
+curl -X PUT http://localhost:8080/api/v1/programs/1 \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":false,"timeout_sec":600}'
 ```
 
 #### 创建用户
 
-```
-POST /api/v1/users
-Authorization: Bearer <admin-token>
-```
-
-```json
-{ "username": "alice", "password": "secure-pw", "role": "user" }
+```bash
+curl -X POST http://localhost:8080/api/v1/users \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"secure-pw","role":"user"}'
 ```
 
 #### 创建 API Key
 
-```
-POST /api/v1/api-keys
-Authorization: Bearer <admin-token>
-```
-
-```json
-{ "name": "hermes-agent" }
+```bash
+curl -X POST http://localhost:8080/api/v1/api-keys \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"hermes-agent"}'
 ```
 
 响应（明文只返回这一次）：
 
 ```json
-{ "id": 1, "name": "hermes-agent", "api_key": "lg_a1b2c3d4e5f6..." }
+{
+  "id": 1,
+  "name": "hermes-agent",
+  "api_key": "lg_a1b2c3d4e5f6..."
+}
 ```
 
 ---
@@ -311,16 +326,16 @@ pending_dryrun ──► pending_approval ──► approved ──► executing
 pending_approval ──► rejected
 ```
 
-| 状态 | 含义 |
-|---|---|
-| `pending_dryrun` | 刚提交，等待 dry-run（内部状态，通常瞬间完成） |
-| `dryrun_failed` | dry-run 校验失败（退出码非 0 或输出不含 `DRYRUN-OK`） |
-| `pending_approval` | dry-run 通过，等待审批人操作 |
-| `approved` | 审批人已批准（内部过渡状态，立即进入执行） |
-| `executing` | 正在执行真实命令 |
-| `done` | 执行成功 |
-| `exec_failed` | 执行失败 |
-| `rejected` | 审批人已驳回 |
+| 状态                 | 含义                                     |
+|--------------------|----------------------------------------|
+| `pending_dryrun`   | 刚提交，等待 dry-run（内部状态，通常瞬间完成）            |
+| `dryrun_failed`    | dry-run 校验失败（退出码非 0 或输出不含 `DRYRUN-OK`） |
+| `pending_approval` | dry-run 通过，等待审批人操作                     |
+| `approved`         | 审批人已批准（内部过渡状态，立即进入执行）                  |
+| `executing`        | 正在执行真实命令                               |
+| `done`             | 执行成功                                   |
+| `exec_failed`      | 执行失败                                   |
+| `rejected`         | 审批人已驳回                                 |
 
 ---
 
@@ -384,9 +399,9 @@ AI Agent 提交工单：
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/tickets \
-  -H "X-API-Key: lg_xxxxxxxx" \
+  -H "X-API-Key: lg_eb77d3bd1fdec99d36c607a9b5fa8f6f0e10ba50ebef878b" \
   -H "Content-Type: application/json" \
-  -d '{"project":"my-project","name":"deploy","args":{"env":"prod"}}'
+  -d '{"project":"测试项目","name":"a+b","args":{"a":3, "b":4}}'
 ```
 
 审批人放行后，系统执行 `/usr/local/bin/my-deploy --env prod`（不带 `--only-print`）。
