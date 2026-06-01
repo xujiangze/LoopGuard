@@ -1,8 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"LoopGuard/internal/auth"
 	"LoopGuard/internal/config"
@@ -149,5 +151,59 @@ func (h *HumanHandler) ListMine(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, ts)
+
+	progIDs := make([]uint64, 0, len(ts))
+	keyIDs := make([]uint64, 0, len(ts))
+	for _, tk := range ts {
+		progIDs = append(progIDs, tk.ProgramID)
+		keyIDs = append(keyIDs, tk.SubmittedBy)
+	}
+
+	progMap, _ := h.store.GetProgramsByIDs(progIDs)
+	keyMap, _ := h.store.GetAPIKeysByIDs(keyIDs)
+
+	items := make([]ticketListItem, len(ts))
+	for i, tk := range ts {
+		item := ticketListItem{
+			ID:          tk.ID,
+			ProgramID:   tk.ProgramID,
+			Args:        tk.Args,
+			Status:      tk.Status,
+			SubmittedBy: tk.SubmittedBy,
+			ApproverID:  tk.ApproverID,
+			ApprovedBy:  tk.ApprovedBy,
+			ApprovedAt:  tk.ApprovedAt,
+			RejectReason: tk.RejectReason,
+			CreatedAt:   tk.CreatedAt,
+			UpdatedAt:   tk.UpdatedAt,
+		}
+		if p, ok := progMap[tk.ProgramID]; ok {
+			item.ProgramProject = p.Project
+			item.ProgramName = p.Name
+		}
+		if k, ok := keyMap[tk.SubmittedBy]; ok {
+			item.SubmittedByName = k.Name
+		} else {
+			item.SubmittedByName = fmt.Sprintf("Key #%d", tk.SubmittedBy)
+		}
+		items[i] = item
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+type ticketListItem struct {
+	ID              uint64            `json:"id"`
+	ProgramID       uint64            `json:"program_id"`
+	ProgramProject  string            `json:"program_project"`
+	ProgramName     string            `json:"program_name"`
+	Args            []byte            `json:"args"`
+	Status          model.TicketStatus `json:"status"`
+	SubmittedBy     uint64            `json:"submitted_by"`
+	SubmittedByName string            `json:"submitted_by_name"`
+	ApproverID      uint64            `json:"approver_id"`
+	ApprovedBy      *uint64           `json:"approved_by"`
+	ApprovedAt      *time.Time        `json:"approved_at,omitempty"`
+	RejectReason    string            `json:"reject_reason"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
 }

@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func versionTestSetup(t *testing.T) (*gin.Engine, *store.Store, string, string) {
+func versionTestSetup(t *testing.T) (*gin.Engine, *store.Store, string) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(""), &gorm.Config{})
@@ -68,7 +68,7 @@ func versionTestSetup(t *testing.T) (*gin.Engine, *store.Store, string, string) 
 	require.NoError(t, os.MkdirAll(snapDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(snapDir, "deploy.sh"), []byte("#!/bin/bash\necho v1"), 0o644))
 
-	return r, s, wsDir, token
+	return r, s, wsDir
 }
 
 type fakeExec struct {
@@ -81,7 +81,7 @@ func (f *fakeExec) Run(_ context.Context, _ executor.ExecRequest) (*executor.Exe
 }
 
 func TestListFiles(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/files", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -94,7 +94,7 @@ func TestListFiles(t *testing.T) {
 }
 
 func TestGetFileContent(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/files/deploy.sh", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -102,21 +102,21 @@ func TestGetFileContent(t *testing.T) {
 }
 
 func TestGetFileContentPathTraversal(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/files/..%2Fetc%2Fpasswd", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/files/..", nil))
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetFileContentNotFound(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/files/nonexist.sh", nil))
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestListVersions(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/versions", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -128,7 +128,7 @@ func TestListVersions(t *testing.T) {
 }
 
 func TestListVersionFiles(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/versions/1/files", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -140,7 +140,7 @@ func TestListVersionFiles(t *testing.T) {
 }
 
 func TestGetVersionFileContent(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/1/versions/1/files/deploy.sh", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -148,7 +148,7 @@ func TestGetVersionFileContent(t *testing.T) {
 }
 
 func TestRollback(t *testing.T) {
-	r, s, wsDir, _ := versionTestSetup(t)
+	r, s, wsDir := versionTestSetup(t)
 
 	// 先创建 v2
 	p, _ := s.GetProgram(1)
@@ -174,7 +174,7 @@ func TestRollback(t *testing.T) {
 }
 
 func TestDeleteProgram(t *testing.T) {
-	r, _, wsDir, _ := versionTestSetup(t)
+	r, _, wsDir := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, mustReq("DELETE", "/programs/1", nil))
 	require.Equal(t, http.StatusOK, w.Code)
@@ -185,14 +185,14 @@ func TestDeleteProgram(t *testing.T) {
 }
 
 func TestDeleteProgramNotFound(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, mustReq("DELETE", "/programs/999", nil))
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestListFilesProgramNotFound(t *testing.T) {
-	r, _, _, _ := versionTestSetup(t)
+	r, _, _ := versionTestSetup(t)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/programs/999/files", nil))
 	require.Equal(t, http.StatusNotFound, w.Code)

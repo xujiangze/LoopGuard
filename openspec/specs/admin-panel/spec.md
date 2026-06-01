@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: 程序管理页面
-系统 SHALL 提供程序管理页面（admin only），展示已注册程序列表，并提供注册新程序的表单。表单和列表 SHALL 包含 interpreter 字段。
+系统 SHALL 提供程序管理页面（admin only），展示已注册程序列表，并提供注册新程序的表单。表单和列表 SHALL 包含 interpreter 字段。列表页 SHALL 提供删除按钮。系统 SHALL 提供程序详情页，包含基本信息、文件查看、版本历史三个 Tab。
 
 #### Scenario: 查看程序列表
 - **WHEN** admin 用户访问 `/admin/programs`
-- **THEN** 页面展示所有已注册程序列表：项目/名称、解释器+二进制路径、审批人、启用状态、操作按钮。当 interpreter 非空时，路径展示为 `interpreter binary_path` 格式
+- **THEN** 页面展示所有已注册程序列表：项目/名称、解释器+二进制路径、审批人、启用状态、操作按钮（编辑、启用/禁用、删除）。当 interpreter 非空时，路径展示为 `interpreter binary_path` 格式
 
 #### Scenario: 注册新程序
 - **WHEN** admin 点击"注册新程序"并填写表单（项目名、程序名、解释器（可选）、二进制路径、审批人、超时、参数白名单）
@@ -22,6 +22,26 @@
 #### Scenario: 编辑程序的 interpreter
 - **WHEN** admin 在编辑弹窗中修改 interpreter 字段并提交
 - **THEN** 系统调用 `PUT /api/v1/programs/:id` 更新 interpreter 字段
+
+#### Scenario: 删除程序
+- **WHEN** admin 点击程序列表中的删除按钮
+- **THEN** 弹出确认弹窗提示"确定删除该程序？此操作将删除所有文件和版本历史，不可恢复"，确认后调用 `DELETE /api/v1/programs/:id`，成功后刷新列表
+
+#### Scenario: 进入程序详情页
+- **WHEN** admin 在程序列表中点击某个程序的项目/名称
+- **THEN** 导航到程序详情页 `/admin/programs/:id`，默认展示"基本信息"Tab
+
+#### Scenario: 查看程序文件
+- **WHEN** admin 在详情页切换到"文件"Tab
+- **THEN** 展示当前版本的文件列表（文件名、大小、是否入口文件），点击文件名可展开查看文件内容
+
+#### Scenario: 查看版本历史
+- **WHEN** admin 在详情页切换到"版本历史"Tab
+- **THEN** 展示所有版本记录（版本号 v1/v2/...、变更说明、是否回滚、操作人、时间），每个版本可展开查看该版本的文件列表和内容，提供"回滚到此版本"按钮
+
+#### Scenario: 执行版本回滚
+- **WHEN** admin 点击某个历史版本的"回滚到此版本"按钮并确认
+- **THEN** 调用 `POST /api/v1/programs/:id/rollback`，成功后刷新版本列表和文件内容
 
 ### Requirement: 用户管理页面
 系统 SHALL 提供用户管理页面（admin only），展示用户列表并提供创建用户表单。

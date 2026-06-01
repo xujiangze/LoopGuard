@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { api } from "@/lib/api"
-import type { Ticket, TicketStatus, APIKey, Program } from "@/types"
+import type { TicketListItem, TicketStatus, APIKey, Program } from "@/types"
 import { TICKET_STATUS_LABELS } from "@/types"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -26,15 +26,6 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
-const STATUS_FILTERS: { label: string; value: TicketStatus | "" }[] = [
-  { label: "全部", value: "" },
-  { label: "待审批", value: "pending_approval" },
-  { label: "已完成", value: "done" },
-  { label: "已驳回", value: "rejected" },
-  { label: "执行失败", value: "exec_failed" },
-  { label: "Dry-run 失败", value: "dryrun_failed" },
-]
-
 const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   pending_dryrun: "secondary",
   dryrun_failed: "outline",
@@ -46,44 +37,91 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "o
   rejected: "destructive",
 }
 
+const STATUS_SORT_ORDER: Record<TicketStatus, number> = {
+  exec_failed: 0,
+  dryrun_failed: 0,
+  pending_approval: 1,
+  executing: 2,
+  approved: 2,
+  done: 3,
+  rejected: 4,
+  pending_dryrun: 3,
+}
+
+function statusPriority(s: TicketStatus) {
+  return STATUS_SORT_ORDER[s] ?? 5
+}
+
+function borderClass(s: TicketStatus) {
+  switch (s) {
+    case "exec_failed":
+    case "dryrun_failed":
+      return "border-l-4 border-l-red-500"
+    case "pending_approval":
+      return "border-l-4 border-l-yellow-500"
+    case "done":
+      return "border-l-4 border-l-green-500"
+    default:
+      return "border-l-4 border-l-gray-300"
+  }
+}
+
+function truncateArgs(args: string[], maxLen = 40) {
+  const joined = args.join(" ")
+  if (joined.length <= maxLen) return joined
+  return joined.slice(0, maxLen) + "..."
+}
+
 export function TicketListPage() {
+  const [allTickets, setAllTickets] = useState<TicketListItem[]>([])
   const [status, setStatus] = useState<TicketStatus | "">("")
-  const [tickets, setTickets] = useState<Ticket[]>([])
-  const [apiKeyMap, setApiKeyMap] = useState<Map<number, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
   // 提交对话框状态
   const [submitOpen, setSubmitOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([])
-  const [programs, setPrograms] = useState<Program[]>([])
+  const [apiKeys, setApiKeys] = useState<{ id: number; name: string }[]>([])
+  const [programs, setPrograms] = useState<{ id: number; project: string; name: string }[]>([])
   const [form, setForm] = useState({ apiKeyId: "", programId: "", argsText: "" })
 
-  const fetchTickets = () => {
+  useEffect(() => {
     setLoading(true)
-    const params = status ? `?status=${status}` : ""
-    Promise.all([
-      api.get<Ticket[]>(`/tickets${params}`).catch(() => [] as Ticket[]),
-      api.get<APIKey[]>("/api-keys").catch(() => [] as APIKey[]),
-    ]).then(([ts, keys]) => {
-      setTickets(ts)
-      const m = new Map<number, string>()
-      for (const k of keys) m.set(k.id, k.name)
-      setApiKeyMap(m)
-      setLoading(false)
-    })
-  }
+    api.get<TicketListItem[]>("/tickets")
+      .then((ts) => setAllTickets(ts))
+      .catch(() => setAllTickets([]))
+      .finally(() => setLoading(false))
+  }, [])
 
-  useEffect(() => { fetchTickets() }, [status])
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {}
+    for (const t of allTickets) {
+      c[t.status] = (c[t.status] || 0) + 1
+    }
+    return c
+  }, [allTickets])
+
+  const sorted = useMemo(() => {
+    return [...allTickets].sort((a, b) => {
+      const pa = statusPriority(a.status)
+      const pb = statusPriority(b.status)
+      if (pa !== pb) return pa - pb
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [allTickets])
+
+  const filtered = useMemo(() => {
+    if (!status) return sorted
+    return sorted.filter((t) => t.status === status)
+  }, [sorted, status])
 
   const openSubmitDialog = () => {
     setSubmitError("")
     setForm({ apiKeyId: "", programId: "", argsText: "" })
     setSubmitOpen(true)
     Promise.all([
-      api.get<APIKey[]>("/api-keys").catch(() => [] as APIKey[]),
-      api.get<Program[]>("/programs").catch(() => [] as Program[]),
+      api.get<APIKey[]>("/api-keys").catch(() => []),
+      api.get<Program[]>("/programs").catch(() => []),
     ]).then(([keys, ps]) => {
       setApiKeys(keys)
       setPrograms(ps)
@@ -114,13 +152,27 @@ export function TicketListPage() {
       })
       toast.success("工单提交成功")
       setSubmitOpen(false)
-      fetchTickets()
+      // Refresh list
+      setLoading(true)
+      api.get<TicketListItem[]>("/tickets")
+        .then((ts) => setAllTickets(ts))
+        .catch(() => setAllTickets([]))
+        .finally(() => setLoading(false))
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "提交失败")
     } finally {
       setSubmitting(false)
     }
   }
+
+  const tabs: { label: string; value: TicketStatus | "" }[] = [
+    { label: `全部 (${allTickets.length})`, value: "" },
+    { label: `待审批 (${counts["pending_approval"] || 0})`, value: "pending_approval" },
+    { label: `已完成 (${counts["done"] || 0})`, value: "done" },
+    { label: `已驳回 (${counts["rejected"] || 0})`, value: "rejected" },
+    { label: `执行失败 (${counts["exec_failed"] || 0})`, value: "exec_failed" },
+    { label: `Dry-run 失败 (${counts["dryrun_failed"] || 0})`, value: "dryrun_failed" },
+  ]
 
   return (
     <div className="space-y-4">
@@ -131,7 +183,7 @@ export function TicketListPage() {
 
       <Tabs value={status} onValueChange={(v) => setStatus(v as TicketStatus | "")}>
         <TabsList>
-          {STATUS_FILTERS.map((f) => (
+          {tabs.map((f) => (
             <TabsTrigger key={f.value} value={f.value}>
               {f.label}
             </TabsTrigger>
@@ -141,27 +193,32 @@ export function TicketListPage() {
 
       {loading ? (
         <p className="text-muted-foreground text-sm">加载中...</p>
-      ) : tickets.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <p className="text-muted-foreground text-sm py-8 text-center">暂无工单</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">ID</TableHead>
-              <TableHead>程序 ID</TableHead>
-              <TableHead className="w-28">提交来源</TableHead>
+              <TableHead className="w-48">程序</TableHead>
+              <TableHead>参数预览</TableHead>
+              <TableHead className="w-32">提交来源</TableHead>
               <TableHead className="w-28">状态</TableHead>
               <TableHead className="w-44">提交时间</TableHead>
               <TableHead className="w-20">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tickets.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="font-mono">{t.id}</TableCell>
-                <TableCell>{t.program_id}</TableCell>
+            {filtered.map((t) => (
+              <TableRow key={t.id} className={borderClass(t.status)}>
+                <TableCell>
+                  <div className="font-medium">{t.program_project || "-"}</div>
+                  <div className="text-sm text-muted-foreground">{t.program_name || "-"}</div>
+                </TableCell>
+                <TableCell className="font-mono text-sm">
+                  {truncateArgs(t.args)}
+                </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {apiKeyMap.get(t.submitted_by) ?? `Key #${t.submitted_by}`}
+                  {t.submitted_by_name}
                 </TableCell>
                 <TableCell>
                   <Badge variant={STATUS_COLORS[t.status] || "default"}>

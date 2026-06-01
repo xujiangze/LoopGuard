@@ -17,6 +17,23 @@ export interface User {
   created_at: string
 }
 
+export interface TicketListItem {
+  id: number
+  program_id: number
+  program_project: string
+  program_name: string
+  args: string[]
+  status: TicketStatus
+  submitted_by: number
+  submitted_by_name: string
+  approver_id: number
+  approved_by: number | null
+  approved_at: string | null
+  reject_reason: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Ticket {
   id: number
   program_id: number
@@ -44,8 +61,28 @@ export interface Program {
   timeout_sec: number
   supports_dryrun: boolean
   enabled: boolean
+  current_version: number
   created_at: string
   updated_at: string
+}
+
+export interface ProgramVersion {
+  id: number
+  program_id: number
+  version: number
+  entry_file: string
+  interpreter: string
+  help_text: string
+  is_rollback: boolean
+  created_by: string
+  created_at: string
+}
+
+export interface ProgramFileInfo {
+  name: string
+  size: number
+  is_entry: boolean
+  mod_time: string
 }
 
 export interface APIKey {

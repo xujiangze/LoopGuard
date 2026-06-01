@@ -57,4 +57,5 @@ skills-lock.json
 xjz_test/
 
 # 工具缓存
-.superpowers/
+.superpowers/workspace/
+workspace/

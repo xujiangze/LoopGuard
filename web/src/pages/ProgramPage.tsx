@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { api } from "@/lib/api"
 import type { Program, User } from "@/types"
 import { Button } from "@/components/ui/button"
@@ -20,16 +21,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
 export function ProgramPage() {
+  const navigate = useNavigate()
   const [programs, setPrograms] = useState<Program[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Program | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Program | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const [form, setForm] = useState({
@@ -156,6 +160,21 @@ export function ProgramPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setSubmitting(true)
+    try {
+      await api.del(`/programs/${deleteTarget.id}`)
+      toast.success("程序已删除", { description: `${deleteTarget.project}/${deleteTarget.name}` })
+      setDeleteTarget(null)
+      fetchData()
+    } catch (err) {
+      toast.error("删除失败", { description: err instanceof Error ? err.message : "未知错误" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (loading) return <p className="text-muted-foreground text-sm">加载中...</p>
 
   return (
@@ -183,7 +202,9 @@ export function ProgramPage() {
             {programs.map((p) => (
               <TableRow key={p.id}>
                 <TableCell>
-                  <div className="font-mono font-medium">{p.project}/{p.name}</div>
+                  <div className="font-mono font-medium cursor-pointer text-primary hover:underline" onClick={() => navigate(`/admin/programs/${p.id}`)}>
+                    {p.project}/{p.name}
+                  </div>
                   <div className="text-xs text-muted-foreground mt-0.5">{p.interpreter}</div>
                 </TableCell>
                 <TableCell className="font-mono text-sm">{p.entry_file}</TableCell>
@@ -202,7 +223,7 @@ export function ProgramPage() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>编辑</Button>
                     <Button
                       variant="ghost"
@@ -211,6 +232,9 @@ export function ProgramPage() {
                       onClick={() => toggleEnabled(p)}
                     >
                       {p.enabled ? "禁用" : "启用"}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteTarget(p)}>
+                      删除
                     </Button>
                   </div>
                 </TableCell>
@@ -355,6 +379,24 @@ export function ProgramPage() {
             <Button variant="outline" onClick={() => setEditOpen(false)}>取消</Button>
             <Button onClick={handleEdit} disabled={submitting}>
               {submitting ? "保存中..." : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>
+              确定删除程序 <strong>{deleteTarget?.project}/{deleteTarget?.name}</strong>？此操作将删除所有文件和版本历史，不可恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+              {submitting ? "删除中..." : "删除"}
             </Button>
           </DialogFooter>
         </DialogContent>

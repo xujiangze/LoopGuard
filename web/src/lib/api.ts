@@ -57,4 +57,21 @@ export const api = {
 
   uploadPut: <T>(path: string, formData: FormData) =>
     request<T>(path, { method: "PUT", body: formData }),
+
+  getText: async (path: string): Promise<string> => {
+    const token = getToken()
+    const headers: Record<string, string> = {}
+    if (token) headers["Authorization"] = `Bearer ${token}`
+    const res = await fetch(`${BASE_URL}${path}`, { headers })
+    if (res.status === 401) {
+      clearToken()
+      window.location.hash = "#/login"
+      throw new ApiError(401, "登录已过期，请重新登录")
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: "请求失败" }))
+      throw new ApiError(res.status, data.error || "请求失败")
+    }
+    return res.text()
+  },
 }

@@ -7,6 +7,7 @@ import { LoginPage } from "@/pages/LoginPage"
 import { TicketListPage } from "@/pages/TicketListPage"
 import { TicketDetailPage } from "@/pages/TicketDetailPage"
 import { ProgramPage } from "@/pages/ProgramPage"
+import { ProgramDetailPage } from "@/pages/ProgramDetailPage"
 import { UserPage } from "@/pages/UserPage"
 import { ApiKeyPage } from "@/pages/ApiKeyPage"
 import { Toaster } from "@/components/ui/sonner"
@@ -31,6 +32,14 @@ export default function App() {
               element={
                 <AdminRoute>
                   <ProgramPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/programs/:id"
+              element={
+                <AdminRoute>
+                  <ProgramDetailPage />
                 </AdminRoute>
               }
             />

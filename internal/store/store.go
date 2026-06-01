@@ -68,7 +68,21 @@ func (s *Store) GetAPIKeyByHash(hash string) (*model.APIKey, error) {
 	return &k, err
 }
 func (s *Store) UpdateAPIKey(k *model.APIKey) error { return s.db.Save(k).Error }
-func (s *Store) DeleteAPIKey(id uint64) error       { return s.db.Delete(&model.APIKey{}, id).Error }
+func (s *Store) DeleteAPIKey(id uint64) error { return s.db.Delete(&model.APIKey{}, id).Error }
+func (s *Store) GetAPIKeysByIDs(ids []uint64) (map[uint64]model.APIKey, error) {
+	m := make(map[uint64]model.APIKey)
+	if len(ids) == 0 {
+		return m, nil
+	}
+	var ks []model.APIKey
+	if err := s.db.Where("id IN ?", ids).Find(&ks).Error; err != nil {
+		return nil, err
+	}
+	for _, k := range ks {
+		m[k.ID] = k
+	}
+	return m, nil
+}
 
 // Programs
 func (s *Store) CreateProgram(p *model.Program) error { return s.db.Create(p).Error }
@@ -89,6 +103,20 @@ func (s *Store) ListPrograms() ([]model.Program, error) {
 	return ps, err
 }
 func (s *Store) DeleteProgram(id uint64) error { return s.db.Delete(&model.Program{}, id).Error }
+func (s *Store) GetProgramsByIDs(ids []uint64) (map[uint64]model.Program, error) {
+	m := make(map[uint64]model.Program)
+	if len(ids) == 0 {
+		return m, nil
+	}
+	var ps []model.Program
+	if err := s.db.Where("id IN ?", ids).Find(&ps).Error; err != nil {
+		return nil, err
+	}
+	for _, p := range ps {
+		m[p.ID] = p
+	}
+	return m, nil
+}
 
 // ProgramVersions
 func (s *Store) CreateProgramVersion(pv *model.ProgramVersion) error {
