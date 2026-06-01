@@ -40,8 +40,21 @@ type Program struct {
 	TimeoutSec     int       `gorm:"not null;default:300" json:"timeout_sec"`
 	SupportsDryrun bool      `gorm:"not null;default:true" json:"supports_dryrun"`
 	Enabled        bool      `gorm:"not null;default:true" json:"enabled"`
+	CurrentVersion uint      `gorm:"not null;default:0" json:"current_version"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type ProgramVersion struct {
+	ID          uint64    `gorm:"primaryKey" json:"id"`
+	ProgramID   uint64    `gorm:"not null;index" json:"program_id"`
+	Version     int       `gorm:"not null" json:"version"`
+	EntryFile   string    `gorm:"size:256;not null" json:"entry_file"`
+	Interpreter string    `gorm:"size:256;default:''" json:"interpreter"`
+	HelpText    string    `gorm:"type:text" json:"help_text"`
+	IsRollback  bool      `gorm:"not null;default:false" json:"is_rollback"`
+	CreatedBy   string    `gorm:"size:64" json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Ticket struct {

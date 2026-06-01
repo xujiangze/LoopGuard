@@ -2,6 +2,9 @@ package store
 
 import (
 	"LoopGuard/internal/model"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	"gorm.io/gorm"
 )
@@ -15,10 +18,19 @@ func New(db *gorm.DB) *Store { return &Store{db: db} }
 func (s *Store) DB() *gorm.DB { return s.db }
 
 func (s *Store) AutoMigrate() error {
-	return s.db.AutoMigrate(
+	if err := s.db.AutoMigrate(
 		&model.User{}, &model.APIKey{}, &model.Program{},
-		&model.Ticket{}, &model.Execution{},
-	)
+		&model.ProgramVersion{}, &model.Ticket{}, &model.Execution{},
+	); err != nil {
+		return err
+	}
+	// 清理重构残留：旧 binary_path 列已从模型移除
+	if s.db.Migrator().HasColumn(&model.Program{}, "binary_path") {
+		if err := s.db.Migrator().DropColumn(&model.Program{}, "binary_path"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Users
@@ -44,6 +56,12 @@ func (s *Store) ListAPIKeys() ([]model.APIKey, error) {
 	err := s.db.Order("id desc").Find(&ks).Error
 	return ks, err
 }
+func (s *Store) GetAPIKey(id uint64) (*model.APIKey, error) {
+	var k model.APIKey
+	err := s.db.First(&k, id).Error
+	return &k, err
+}
+
 func (s *Store) GetAPIKeyByHash(hash string) (*model.APIKey, error) {
 	var k model.APIKey
 	err := s.db.Where("key_hash = ? AND enabled = ?", hash, true).First(&k).Error
@@ -71,6 +89,42 @@ func (s *Store) ListPrograms() ([]model.Program, error) {
 	return ps, err
 }
 func (s *Store) DeleteProgram(id uint64) error { return s.db.Delete(&model.Program{}, id).Error }
+
+// ProgramVersions
+func (s *Store) CreateProgramVersion(pv *model.ProgramVersion) error {
+	return s.db.Create(pv).Error
+}
+func (s *Store) GetProgramVersion(programID uint64, version int) (*model.ProgramVersion, error) {
+	var pv model.ProgramVersion
+	err := s.db.Where("program_id = ? AND version = ?", programID, version).First(&pv).Error
+	return &pv, err
+}
+func (s *Store) ListProgramVersions(programID uint64) ([]model.ProgramVersion, error) {
+	var pvs []model.ProgramVersion
+	err := s.db.Where("program_id = ?", programID).Order("version desc").Find(&pvs).Error
+	return pvs, err
+}
+func (s *Store) DeleteProgramVersionsByProgramID(programID uint64) error {
+	return s.db.Where("program_id = ?", programID).Delete(&model.ProgramVersion{}).Error
+}
+
+func (s *Store) DeleteProgramWithCascade(id uint64, workspaceDir string) error {
+	p, err := s.GetProgram(id)
+	if err != nil {
+		return err
+	}
+	if err := s.DeleteProgramVersionsByProgramID(id); err != nil {
+		return err
+	}
+	if err := s.DeleteProgram(id); err != nil {
+		return err
+	}
+	// 清理当前文件目录
+	os.RemoveAll(filepath.Join(workspaceDir, p.Project, p.Name))
+	// 清理版本快照目录
+	os.RemoveAll(filepath.Join(workspaceDir, ".versions", strconv.FormatUint(id, 10)))
+	return nil
+}
 
 // Tickets
 func (s *Store) CreateTicket(t *model.Ticket) error { return s.db.Create(t).Error }

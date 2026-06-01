@@ -61,6 +61,27 @@ func APIKeyOrJWTAuth(s *store.Store, secret string) gin.HandlerFunc {
 	}
 }
 
+func APIKeyOrAdminJWTAuth(s *store.Store, secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if plain := c.GetHeader("X-API-Key"); plain != "" {
+			k, err := s.GetAPIKeyByHash(auth.HashAPIKey(plain))
+			if err == nil {
+				c.Set("api_key_id", k.ID)
+				c.Next()
+				return
+			}
+		}
+		JWTAuth(secret)(c)
+		if c.IsAborted() {
+			return
+		}
+		if c.GetString("role") != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "需要管理员权限"})
+			return
+		}
+	}
+}
+
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetString("role") != "admin" {

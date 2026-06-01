@@ -144,7 +144,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 curl -X POST http://localhost:8080/api/v1/tickets \
   -H "X-API-Key: lg_xxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"project":"my-project","name":"deploy","args":{"env":"prod","region":"us-east-1"}}'
+  -d '{"project":"my-project","name":"deploy","args":["--env","prod","--region","us-east-1"]}'
 ```
 
 响应（dry-run 通过）：
@@ -184,9 +184,7 @@ curl http://localhost:8080/api/v1/tickets/1 \
   "id": 1,
   "program_id": 1,
   "status": "done",
-  "args": {
-    "env": "prod"
-  },
+  "args": ["--env", "prod"],
   "dryrun_output": "DRYRUN-OK\nwill deploy to prod",
   "exec_output": "Deploying to prod...",
   "approved_by": 2,
@@ -253,21 +251,17 @@ curl -X POST http://localhost:8080/api/v1/tickets/1/reject \
 ```bash
 curl -X POST http://localhost:8080/api/v1/programs \
   -H "Authorization: Bearer <admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project": "my-project",
-    "name": "deploy",
-    "binary_path": "/usr/local/bin/my-deploy-tool",
-    "approver_id": 2,
-    "timeout_sec": 300,
-    "params_schema": {
-      "env": "string",
-      "region": "string"
-    }
-  }'
+  -F "project=my-project" \
+  -F "name=deploy" \
+  -F "entry_file=deploy.sh" \
+  -F "interpreter=bash" \
+  -F "approver_id=2" \
+  -F "timeout_sec=300" \
+  -F "files=@deploy.sh" \
+  -F "files=@utils.sh"
 ```
 
-注册时系统自动执行 `binary_path --help` 探测程序是否支持 `--only-print` 参数。不支持的程序将被拒绝注册。
+注册时系统自动执行 `{interpreter} {entry_file} --help` 探测程序是否支持 `--only-print` 参数。不支持的程序将被拒绝注册。文件保存在 `workspace/{project}/{name}/` 目录下。
 
 #### 查看程序列表
 
@@ -281,9 +275,11 @@ curl http://localhost:8080/api/v1/programs \
 ```bash
 curl -X PUT http://localhost:8080/api/v1/programs/1 \
   -H "Authorization: Bearer <admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled":false,"timeout_sec":600}'
+  -F "enabled=false" \
+  -F "timeout_sec=600"
 ```
+
+如需更新文件，加上 `-F "files=@deploy.sh"` 等。更新文件后系统自动重新执行 `--help` 刷新程序说明。
 
 #### 创建用户
 
@@ -352,10 +348,12 @@ LoopGuard 托管的命令行程序需要满足以下条件：
 
 ```bash
 #!/bin/bash
-# /usr/local/bin/my-deploy
+# deploy.sh
 
 if [[ "$1" == "--help" ]]; then
-  echo "Usage: my-deploy [--only-print] --env ENV"
+  echo "Usage: deploy.sh [--only-print] --env ENV"
+  echo "  --env     目标环境"
+  echo "  --only-print  只打印不执行（dry-run 模式）"
   exit 0
 fi
 
@@ -385,31 +383,31 @@ echo "Deploying to $ENV..."
 ```bash
 curl -X POST http://localhost:8080/api/v1/programs \
   -H "Authorization: Bearer <admin-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project": "my-project",
-    "name": "deploy",
-    "binary_path": "/usr/local/bin/my-deploy",
-    "approver_id": 2,
-    "params_schema": {"env": "string"}
-  }'
+  -F "project=my-project" \
+  -F "name=deploy" \
+  -F "entry_file=deploy.sh" \
+  -F "interpreter=bash" \
+  -F "approver_id=2" \
+  -F "files=@deploy.sh"
+```
+
+AI Agent 获取程序列表（含 HelpText）了解用法：
+
+```bash
+curl http://localhost:8080/api/v1/programs \
+  -H "X-API-Key: lg_xxxxxxxx"
 ```
 
 AI Agent 提交工单：
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/tickets \
-  -H "X-API-Key: lg_eb77d3bd1fdec99d36c607a9b5fa8f6f0e10ba50ebef878b" \
+  -H "X-API-Key: lg_xxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"project":"测试项目","name":"a+b","args":{"a":3, "b":4}}'
-  
-curl -X POST http://localhost:8080/api/v1/tickets \
-  -H "X-API-Key: lg_775e92a40200e1a06c4cb6eb089289859981c0a153822236" \
-  -H "Content-Type: application/json" \
-  -d '{"project":"tsunami_ipban","name":"entry_ipban.py","args":{"-m": "group_unban", "-e": "never", "-i":"9.8.7.6", "-u":"huayang", "-g":"huayangblacklist", "--skip-confirm": ""}}'
+  -d '{"project":"tsunami_ipban","name":"entry_ipban","args":["-m","group_unban","-e","never","-i","9.8.7.6","--skip-confirm"]}'
 ```
 
-审批人放行后，系统执行 `/usr/local/bin/my-deploy --env prod`（不带 `--only-print`）。
+审批人放行后，系统执行 `bash workspace/tsunami_ipban/entry_ipban/entry_ipban.py -m group_unban -e never -i 9.8.7.6 --skip-confirm`（不带 `--only-print`）。
 
 ---
 
@@ -418,6 +416,6 @@ curl -X POST http://localhost:8080/api/v1/tickets \
 - **API Key**：创建后明文只显示一次，丢失需重新创建
 - **JWT Secret**：生产环境务必通过环境变量设置强随机密钥
 - **审批人绑定**：每个程序注册时指定审批人，只有该审批人（或 admin）能放行
-- **参数白名单**：`args` 的 key 必须在注册时的 `params_schema` 内，防止注入额外参数
+- **参数校验**：`args` 为字符串列表，检查元字符（`;`、`|`、`&` 等）防止注入，`--only-print` 为系统保留参数
 - **保留字**：`only-print` 为系统保留，AI Agent 无法通过此参数绕过 dry-run
 - **进程隔离**：执行命令时使用独立进程组，超时自动 kill 整组防残留子进程

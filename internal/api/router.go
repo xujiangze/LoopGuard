@@ -44,13 +44,15 @@ func NewRouter(d Deps) *gin.Engine {
 
 	aiGrp := v1.Group("", APIKeyAuth(d.Store))
 	aiGrp.POST("/tickets", ai.Submit)
-	aiGrp.GET("/programs", admin.ListPrograms)
+
+	v1.GET("/programs", APIKeyOrAdminJWTAuth(d.Store, d.Cfg.JWTSecret), admin.ListPrograms)
 
 	// GET /tickets/:id: AI 轮询和人工查看共用，接受 API Key 或 JWT
 	v1.GET("/tickets/:id", APIKeyOrJWTAuth(d.Store, d.Cfg.JWTSecret), ai.Get)
 	v1.GET("/tickets/:id/executions", JWTAuth(d.Cfg.JWTSecret), human.ListExecutions)
 
 	jwtGrp := v1.Group("", JWTAuth(d.Cfg.JWTSecret))
+	jwtGrp.POST("/tickets/submit", human.Submit)
 	jwtGrp.GET("/tickets", human.ListMine)
 	jwtGrp.POST("/tickets/:id/approve", human.Approve)
 	jwtGrp.POST("/tickets/:id/reject", human.Reject)

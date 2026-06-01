@@ -106,6 +106,41 @@ func (h *HumanHandler) ListExecutions(c *gin.Context) {
 	c.JSON(http.StatusOK, es)
 }
 
+func (h *HumanHandler) Submit(c *gin.Context) {
+	var req struct {
+		APIKeyID uint64   `json:"api_key_id" binding:"required"`
+		Project  string   `json:"project" binding:"required"`
+		Name     string   `json:"name" binding:"required"`
+		Args     []string `json:"args"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	k, err := h.store.GetAPIKey(req.APIKeyID)
+	if err != nil || !k.Enabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "API Key 不存在或已禁用"})
+		return
+	}
+
+	tk, err := h.tickets.Submit(c.Request.Context(), service.SubmitInput{
+		Project: req.Project, Name: req.Name,
+		APIKeyID: req.APIKeyID, Args: req.Args,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp := gin.H{
+		"ticket_id":     tk.ID,
+		"status":        tk.Status,
+		"dryrun_output": tk.DryrunOutput,
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *HumanHandler) ListMine(c *gin.Context) {
 	uid := c.GetUint64("user_id")
 	status := model.TicketStatus(c.Query("status"))
