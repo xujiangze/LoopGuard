@@ -1,0 +1,16 @@
+.git
+.claude
+.agents
+.codegraph
+.openspec
+openspec
+web/node_modules
+web/.vite
+*.test
+*.out
+coverage.txt
+.env
+.env.*
+xjz_test
+*.md
+!web/src/**
