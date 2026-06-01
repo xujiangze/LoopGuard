@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -202,5 +203,52 @@ func TestSubmitTicketDryrunWithStderr(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusPendingApproval, tk.Status)
 	assert.Contains(t, tk.DryrunOutput, "# stderr\nwarning: deprecated API")
+}
+
+func TestApproveFillsExecOutput(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{
+		Command: "/bin/deploy --env prod", ExitCode: 0,
+		Stdout: "deployment configured", Stderr: "", DurationMs: 1523,
+	}}
+	svc, s := newTicketService(t, fe)
+	p := seedProgram(t, s, `{"env":"string"}`)
+
+	tk := &model.Ticket{
+		ProgramID: p.ID, Args: datatypes.JSON(`{"env":"prod"}`),
+		Status: model.StatusPendingApproval, SubmittedBy: 7,
+		ApproverID: p.ApproverID,
+		DryrunOutput: "# 命令\n/bin/deploy --only-print\n\n# 结果\n退出码: 0 | 校验: 通过",
+	}
+	require.NoError(t, s.CreateTicket(tk))
+
+	result, err := svc.Approve(context.Background(), tk.ID, p.ApproverID)
+	require.NoError(t, err)
+	assert.Equal(t, model.StatusDone, result.Status)
+	assert.Contains(t, result.ExecOutput, "# 命令")
+	assert.Contains(t, result.ExecOutput, "deployment configured")
+	assert.Contains(t, result.ExecOutput, "耗时: 1523ms")
+}
+
+func TestApproveExecFailedFillsExecOutput(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{
+		Command: "/bin/deploy --env prod", ExitCode: 1,
+		Stdout: "", Stderr: "error: connection refused", DurationMs: 500,
+	}}
+	svc, s := newTicketService(t, fe)
+	p := seedProgram(t, s, `{"env":"string"}`)
+
+	tk := &model.Ticket{
+		ProgramID: p.ID, Args: datatypes.JSON(`{"env":"prod"}`),
+		Status: model.StatusPendingApproval, SubmittedBy: 7,
+		ApproverID: p.ApproverID,
+		DryrunOutput: "# 命令\n/bin/deploy --only-print",
+	}
+	require.NoError(t, s.CreateTicket(tk))
+
+	result, err := svc.Approve(context.Background(), tk.ID, p.ApproverID)
+	require.NoError(t, err)
+	assert.Equal(t, model.StatusExecFailed, result.Status)
+	assert.Contains(t, result.ExecOutput, "# stderr\nerror: connection refused")
+	assert.Contains(t, result.ExecOutput, "退出码: 1")
 }
 

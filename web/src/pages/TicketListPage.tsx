@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { api } from "@/lib/api"
-import type { Ticket, TicketStatus } from "@/types"
+import type { Ticket, TicketStatus, APIKey } from "@/types"
 import { TICKET_STATUS_LABELS } from "@/types"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -31,16 +31,22 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "o
 export function TicketListPage() {
   const [status, setStatus] = useState<TicketStatus | "">("")
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [apiKeyMap, setApiKeyMap] = useState<Map<number, string>>(new Map())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     const params = status ? `?status=${status}` : ""
-    api
-      .get<Ticket[]>(`/tickets${params}`)
-      .then(setTickets)
-      .catch(() => setTickets([]))
-      .finally(() => setLoading(false))
+    Promise.all([
+      api.get<Ticket[]>(`/tickets${params}`).catch(() => [] as Ticket[]),
+      api.get<APIKey[]>("/api-keys").catch(() => [] as APIKey[]),
+    ]).then(([ts, keys]) => {
+      setTickets(ts)
+      const m = new Map<number, string>()
+      for (const k of keys) m.set(k.id, k.name)
+      setApiKeyMap(m)
+      setLoading(false)
+    })
   }, [status])
 
   return (
@@ -67,6 +73,7 @@ export function TicketListPage() {
             <TableRow>
               <TableHead className="w-20">ID</TableHead>
               <TableHead>程序 ID</TableHead>
+              <TableHead className="w-28">提交来源</TableHead>
               <TableHead className="w-28">状态</TableHead>
               <TableHead className="w-44">提交时间</TableHead>
               <TableHead className="w-20">操作</TableHead>
@@ -77,6 +84,9 @@ export function TicketListPage() {
               <TableRow key={t.id}>
                 <TableCell className="font-mono">{t.id}</TableCell>
                 <TableCell>{t.program_id}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {apiKeyMap.get(t.submitted_by) ?? `Key #${t.submitted_by}`}
+                </TableCell>
                 <TableCell>
                   <Badge variant={STATUS_COLORS[t.status] || "default"}>
                     {TICKET_STATUS_LABELS[t.status]}

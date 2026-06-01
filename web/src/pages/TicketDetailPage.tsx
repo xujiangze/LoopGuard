@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { api } from "@/lib/api"
-import type { Ticket, Execution } from "@/types"
+import type { Ticket, Execution, APIKey } from "@/types"
 import { TICKET_STATUS_LABELS } from "@/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,10 +21,22 @@ export function TicketDetailPage() {
   const navigate = useNavigate()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [executions, setExecutions] = useState<Execution[]>([])
+  const [apiKeyMap, setApiKeyMap] = useState<Map<number, string>>(new Map())
   const [error, setError] = useState("")
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    api
+      .get<APIKey[]>("/api-keys")
+      .then((keys) => {
+        const m = new Map<number, string>()
+        for (const k of keys) m.set(k.id, k.name)
+        setApiKeyMap(m)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!id) return
@@ -114,6 +126,10 @@ export function TicketDetailPage() {
           <div className="flex justify-between">
             <span className="text-muted-foreground">提交时间</span>
             <span>{new Date(ticket.created_at).toLocaleString("zh-CN")}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">提交来源</span>
+            <span>{apiKeyMap.get(ticket.submitted_by) ?? `Key #${ticket.submitted_by}`}</span>
           </div>
         </CardContent>
       </Card>

@@ -201,10 +201,21 @@ func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) 
 	exe.FinishedAt = &fin
 	_ = svc.store.CreateExecution(exe)
 
-	if runErr != nil || res == nil || res.ExitCode != 0 || res.TimedOut {
+	if runErr != nil || res == nil {
+		cmd := "N/A"
+		if res != nil {
+			cmd = res.Command
+		}
 		tk.Status = model.StatusExecFailed
+		tk.ExecOutput = formatExecReport(cmd, "", "", -1, "执行错误: "+errString(runErr))
+	} else if res.ExitCode != 0 || res.TimedOut {
+		tk.Status = model.StatusExecFailed
+		tk.ExecOutput = formatExecReport(res.Command, res.Stdout, res.Stderr, res.ExitCode,
+			fmt.Sprintf("耗时: %dms", res.DurationMs))
 	} else {
 		tk.Status = model.StatusDone
+		tk.ExecOutput = formatExecReport(res.Command, res.Stdout, res.Stderr, res.ExitCode,
+			fmt.Sprintf("耗时: %dms", res.DurationMs))
 	}
 	_ = svc.store.UpdateTicket(tk)
 	return tk, nil
