@@ -28,7 +28,7 @@ func NewRouter(d Deps) *gin.Engine {
 			return true
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -36,7 +36,7 @@ func NewRouter(d Deps) *gin.Engine {
 
 	ai := NewAIHandler(d.TicketSvc, d.Cfg)
 	human := NewHumanHandler(d.Store, d.TicketSvc, d.Cfg)
-	admin := NewAdminHandler(d.Store, d.ProgramSvc)
+	admin := NewAdminHandler(d.Store, d.ProgramSvc, d.Cfg.WorkspaceDir)
 
 	v1 := r.Group("/api/v1")
 
@@ -44,6 +44,7 @@ func NewRouter(d Deps) *gin.Engine {
 
 	aiGrp := v1.Group("", APIKeyAuth(d.Store))
 	aiGrp.POST("/tickets", ai.Submit)
+	aiGrp.GET("/programs", admin.ListPrograms)
 
 	// GET /tickets/:id: AI 轮询和人工查看共用，接受 API Key 或 JWT
 	v1.GET("/tickets/:id", APIKeyOrJWTAuth(d.Store, d.Cfg.JWTSecret), ai.Get)
@@ -56,7 +57,6 @@ func NewRouter(d Deps) *gin.Engine {
 
 	adminGrp := v1.Group("", JWTAuth(d.Cfg.JWTSecret), AdminOnly())
 	adminGrp.POST("/programs", admin.CreateProgram)
-	adminGrp.GET("/programs", admin.ListPrograms)
 	adminGrp.PUT("/programs/:id", admin.UpdateProgram)
 	adminGrp.POST("/users", admin.CreateUser)
 	adminGrp.GET("/users", admin.ListUsers)

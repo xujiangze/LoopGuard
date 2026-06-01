@@ -19,9 +19,9 @@ func TestRouterWiring(t *testing.T) {
 	ex := executor.NewProcessExecutor()
 	deps := Deps{
 		Store:      s,
-		TicketSvc:  service.NewTicketService(s, ex),
-		ProgramSvc: service.NewProgramService(s, ex),
-		Cfg:        config.Config{JWTSecret: "s", BaseURL: "http://t"},
+		TicketSvc:  service.NewTicketService(s, ex, "/tmp/test-ws"),
+		ProgramSvc: service.NewProgramService(s, ex, "/tmp/test-ws"),
+		Cfg:        config.Config{JWTSecret: "s", BaseURL: "http://t", WorkspaceDir: "/tmp/test-ws"},
 	}
 	r := NewRouter(deps)
 

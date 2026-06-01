@@ -33,7 +33,7 @@ func TestGetProgramByProjectName(t *testing.T) {
 	s := newTestStore(t)
 	u := &model.User{Username: "approver", PasswordHash: "h", Role: model.RoleUser}
 	require.NoError(t, s.CreateUser(u))
-	p := &model.Program{Project: "demo", Name: "deploy", BinaryPath: "/bin/x", ApproverID: u.ID, Enabled: true}
+	p := &model.Program{Project: "demo", Name: "deploy", EntryFile: "deploy.sh", Interpreter: "bash", ApproverID: u.ID, Enabled: true}
 	require.NoError(t, s.CreateProgram(p))
 
 	got, err := s.GetProgramByProjectName("demo", "deploy")

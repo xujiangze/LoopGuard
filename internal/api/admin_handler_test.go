@@ -19,8 +19,8 @@ func TestAdminCreateAPIKeyReturnsPlainOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	s := testStore(t)
 	ex := executor.NewProcessExecutor()
-	progSvc := service.NewProgramService(s, ex)
-	h := NewAdminHandler(s, progSvc)
+	progSvc := service.NewProgramService(s, ex, "/tmp/test-ws")
+	h := NewAdminHandler(s, progSvc, "/tmp/test-ws")
 
 	r := gin.New()
 	r.POST("/api-keys", h.CreateAPIKey)
@@ -37,7 +37,7 @@ func TestAdminCreateAPIKeyReturnsPlainOnce(t *testing.T) {
 func TestAdminCreateUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	s := testStore(t)
-	h := NewAdminHandler(s, service.NewProgramService(s, executor.NewProcessExecutor()))
+	h := NewAdminHandler(s, service.NewProgramService(s, executor.NewProcessExecutor(), "/tmp/test-ws"), "/tmp/test-ws")
 	r := gin.New()
 	r.POST("/users", h.CreateUser)
 	body := []byte(`{"username":"bob","password":"pw123456","role":"user"}`)

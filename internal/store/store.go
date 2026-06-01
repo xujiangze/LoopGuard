@@ -70,6 +70,7 @@ func (s *Store) ListPrograms() ([]model.Program, error) {
 	err := s.db.Order("id desc").Find(&ps).Error
 	return ps, err
 }
+func (s *Store) DeleteProgram(id uint64) error { return s.db.Delete(&model.Program{}, id).Error }
 
 // Tickets
 func (s *Store) CreateTicket(t *model.Ticket) error { return s.db.Create(t).Error }

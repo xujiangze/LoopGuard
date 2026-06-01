@@ -27,8 +27,8 @@ func ServeCmd() *cobra.Command {
 			var ex executor.Executor = executor.NewProcessExecutor()
 			deps := api.Deps{
 				Store:      s,
-				TicketSvc:  service.NewTicketService(s, ex),
-				ProgramSvc: service.NewProgramService(s, ex),
+				TicketSvc:  service.NewTicketService(s, ex, cfg.WorkspaceDir),
+				ProgramSvc: service.NewProgramService(s, ex, cfg.WorkspaceDir),
 				Cfg:        cfg,
 			}
 			r := api.NewRouter(deps)

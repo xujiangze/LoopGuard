@@ -30,18 +30,18 @@ type APIKey struct {
 }
 
 type Program struct {
-	ID             uint64         `gorm:"primaryKey" json:"id"`
-	Project        string         `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"project"`
-	Name           string         `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"name"`
-	BinaryPath     string         `gorm:"size:512;not null" json:"binary_path"`
-	Interpreter    string         `gorm:"size:256;default:''" json:"interpreter"`
-	HelpText       string         `gorm:"type:text" json:"help_text"`
-	ParamsSchema   datatypes.JSON `gorm:"type:json" json:"params_schema"`
-	ApproverID     uint64         `gorm:"not null" json:"approver_id"`
-	TimeoutSec     int            `gorm:"not null;default:300" json:"timeout_sec"`
-	SupportsDryrun bool           `gorm:"not null;default:true" json:"supports_dryrun"`
-	Enabled        bool           `gorm:"not null;default:true" json:"enabled"`
-	CreatedAt      time.Time      `json:"created_at"`
+	ID             uint64    `gorm:"primaryKey" json:"id"`
+	Project        string    `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"project"`
+	Name           string    `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"name"`
+	EntryFile      string    `gorm:"size:256;not null" json:"entry_file"`
+	Interpreter    string    `gorm:"size:256;default:''" json:"interpreter"`
+	HelpText       string    `gorm:"type:text" json:"help_text"`
+	ApproverID     uint64    `gorm:"not null" json:"approver_id"`
+	TimeoutSec     int       `gorm:"not null;default:300" json:"timeout_sec"`
+	SupportsDryrun bool      `gorm:"not null;default:true" json:"supports_dryrun"`
+	Enabled        bool      `gorm:"not null;default:true" json:"enabled"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Ticket struct {

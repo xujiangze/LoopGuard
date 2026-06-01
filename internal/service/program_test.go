@@ -27,50 +27,32 @@ func newTestProgramService(t *testing.T, exec executor.Executor) (*ProgramServic
 	require.NoError(t, err)
 	s := store.New(db)
 	require.NoError(t, s.AutoMigrate())
-	return NewProgramService(s, exec), s
+	return NewProgramService(s, exec, "/tmp/test-workspace"), s
 }
 
-func TestRegisterProgramHelpProbe(t *testing.T) {
+func TestRegisterProgramValidation(t *testing.T) {
 	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "usage: deploy [--only-print]"}}
 	svc, s := newTestProgramService(t, fe)
 
 	u := &model.User{Username: "appr", PasswordHash: "h", Role: model.RoleUser}
 	require.NoError(t, s.CreateUser(u))
 
-	p, err := svc.Register(context.Background(), RegisterInput{
-		Project: "demo", Name: "deploy", BinaryPath: "/bin/deploy",
-		ApproverID: u.ID, TimeoutSec: 60, ParamsSchema: []byte(`{"env":"string"}`),
-	})
-	require.NoError(t, err)
-	require.NotZero(t, p.ID)
-	require.NotEmpty(t, p.HelpText)
-	require.True(t, p.SupportsDryrun)
-}
-
-func TestRegisterProgramRejectsUnknownFlag(t *testing.T) {
-	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 2, Stderr: "unknown flag: --only-print"}}
-	svc, s := newTestProgramService(t, fe)
-	u := &model.User{Username: "appr2", PasswordHash: "h", Role: model.RoleUser}
-	require.NoError(t, s.CreateUser(u))
-
 	_, err := svc.Register(context.Background(), RegisterInput{
-		Project: "demo", Name: "bad", BinaryPath: "/bin/bad", ApproverID: u.ID,
-	})
-	require.Error(t, err)
-}
-
-func TestRegisterProgramWithInterpreter(t *testing.T) {
-	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "usage: deploy [--only-print]"}}
-	svc, s := newTestProgramService(t, fe)
-
-	u := &model.User{Username: "appr3", PasswordHash: "h", Role: model.RoleUser}
-	require.NoError(t, s.CreateUser(u))
-
-	p, err := svc.Register(context.Background(), RegisterInput{
-		Project: "demo", Name: "py-deploy", BinaryPath: "/app/deploy.py", Interpreter: "python3",
+		Project: "demo", Name: "deploy", EntryFile: "deploy.sh",
 		ApproverID: u.ID, TimeoutSec: 60,
 	})
-	require.NoError(t, err)
-	require.Equal(t, "python3", p.Interpreter)
-	require.Equal(t, "/app/deploy.py", p.BinaryPath)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "interpreter")
+}
+
+func TestRegisterProgramRejectsBadProjectName(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "usage"}}
+	svc, _ := newTestProgramService(t, fe)
+
+	_, err := svc.Register(context.Background(), RegisterInput{
+		Project: "my/project", Name: "deploy", EntryFile: "deploy.sh",
+		Interpreter: "bash",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "非法字符")
 }

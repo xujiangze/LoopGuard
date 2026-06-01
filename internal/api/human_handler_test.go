@@ -20,6 +20,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type fakeExecutor struct {
+	result *executor.ExecResult
+	err    error
+}
+
+func (f *fakeExecutor) Run(_ context.Context, _ executor.ExecRequest) (*executor.ExecResult, error) {
+	return f.result, f.err
+}
+
 func mustReq(method, path string, body []byte) *http.Request {
 	if body == nil {
 		return httptest.NewRequest(method, path, nil)
@@ -36,15 +45,24 @@ func TestLoginAndApprove(t *testing.T) {
 	appr := &model.User{Username: "appr", PasswordHash: pw, Role: model.RoleUser}
 	require.NoError(t, s.CreateUser(appr))
 	require.NoError(t, s.CreateProgram(&model.Program{Project: "demo", Name: "deploy",
-		BinaryPath: "/bin/echo", ApproverID: appr.ID, TimeoutSec: 10, SupportsDryrun: true,
-		Enabled: true, ParamsSchema: []byte(`{"msg":"string"}`)}))
+		EntryFile: "deploy.sh", Interpreter: "bash", ApproverID: appr.ID, TimeoutSec: 10, SupportsDryrun: true,
+		Enabled: true}))
 
-	ex := executor.NewProcessExecutor()
-	ticketSvc := service.NewTicketService(s, ex)
+	ex := &fakeExecutor{result: &executor.ExecResult{
+		Command: "bash /tmp/test-ws/demo/deploy.sh msg DRYRUN-OK --only-print",
+		ExitCode: 0, Stdout: "DRYRUN-OK", Stderr: "",
+	}}
+	ticketSvc := service.NewTicketService(s, ex, "/tmp/test-ws")
 	tk, err := ticketSvc.Submit(context.Background(), service.SubmitInput{
-		Project: "demo", Name: "deploy", APIKeyID: 1, Args: map[string]any{"msg": "DRYRUN-OK"}})
+		Project: "demo", Name: "deploy", APIKeyID: 1, Args: []string{"msg", "DRYRUN-OK"}})
 	require.NoError(t, err)
 	require.Equal(t, model.StatusPendingApproval, tk.Status)
+
+	// Mock 实际执行
+	ex.result = &executor.ExecResult{
+		Command: "bash /tmp/test-ws/demo/deploy.sh msg DRYRUN-OK",
+		ExitCode: 0, Stdout: "deployed", Stderr: "",
+	}
 
 	cfg := config.Config{JWTSecret: "s"}
 	h := NewHumanHandler(s, ticketSvc, cfg)

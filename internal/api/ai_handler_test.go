@@ -24,11 +24,11 @@ func setupAI(t *testing.T) (*gin.Engine, *store.Store) {
 	u := &model.User{Username: "appr", PasswordHash: "h", Role: model.RoleUser}
 	require.NoError(t, s.CreateUser(u))
 	require.NoError(t, s.CreateProgram(&model.Program{Project: "demo", Name: "deploy",
-		BinaryPath: "/bin/echo", ApproverID: u.ID, TimeoutSec: 10, SupportsDryrun: true,
-		Enabled: true, ParamsSchema: []byte(`{"msg":"string"}`)}))
+		EntryFile: "deploy.sh", Interpreter: "bash", ApproverID: u.ID, TimeoutSec: 10, SupportsDryrun: true,
+		Enabled: true}))
 
 	ex := executor.NewProcessExecutor()
-	ticketSvc := service.NewTicketService(s, ex)
+	ticketSvc := service.NewTicketService(s, ex, "/tmp/test-ws")
 	cfg := config.Config{BaseURL: "http://test"}
 	h := NewAIHandler(ticketSvc, cfg)
 
@@ -41,7 +41,7 @@ func setupAI(t *testing.T) (*gin.Engine, *store.Store) {
 func TestAISubmitReturnsApprovalURL(t *testing.T) {
 	r, _ := setupAI(t)
 	body, _ := json.Marshal(map[string]any{
-		"project": "demo", "name": "deploy", "args": map[string]any{"msg": "DRYRUN-OK"}})
+		"project": "demo", "name": "deploy", "args": []string{"msg", "DRYRUN-OK"}})
 	req := httptest.NewRequest("POST", "/api/v1/tickets", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

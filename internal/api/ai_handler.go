@@ -22,9 +22,9 @@ func NewAIHandler(t *service.TicketService, cfg config.Config) *AIHandler {
 }
 
 type submitReq struct {
-	Project string         `json:"project" binding:"required"`
-	Name    string         `json:"name" binding:"required"`
-	Args    map[string]any `json:"args"`
+	Project string   `json:"project" binding:"required"`
+	Name    string   `json:"name" binding:"required"`
+	Args    []string `json:"args"`
 }
 
 func (h *AIHandler) Submit(c *gin.Context) {

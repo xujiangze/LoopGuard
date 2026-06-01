@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,19 +17,20 @@ import (
 )
 
 type TicketService struct {
-	store *store.Store
-	exec  executor.Executor
+	store        *store.Store
+	exec         executor.Executor
+	workspaceDir string
 }
 
-func NewTicketService(s *store.Store, e executor.Executor) *TicketService {
-	return &TicketService{store: s, exec: e}
+func NewTicketService(s *store.Store, e executor.Executor, workspaceDir string) *TicketService {
+	return &TicketService{store: s, exec: e, workspaceDir: workspaceDir}
 }
 
 type SubmitInput struct {
 	Project  string
 	Name     string
 	APIKeyID uint64
-	Args     map[string]any
+	Args     []string
 }
 
 func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ticket, error) {
@@ -40,7 +41,7 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 	if !p.Enabled {
 		return nil, errors.New("程序已禁用")
 	}
-	if err := validateArgs(p.ParamsSchema, in.Args); err != nil {
+	if err := ValidateArgs(in.Args); err != nil {
 		return nil, err
 	}
 
@@ -54,10 +55,11 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 		return nil, err
 	}
 
-	cliArgs := buildArgs(in.Args)
+	binaryPath := filepath.Join(svc.workspaceDir, p.Project, p.Name, p.EntryFile)
+	workDir := filepath.Join(svc.workspaceDir, p.Project, p.Name)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: p.BinaryPath, Interpreter: p.Interpreter, Args: cliArgs, DryRun: true,
-		TimeoutSec: p.TimeoutSec, WorkDir: ".",
+		BinaryPath: binaryPath, Interpreter: p.Interpreter, Args: in.Args, DryRun: true,
+		TimeoutSec: p.TimeoutSec, WorkDir: workDir,
 	})
 	now := time.Now()
 	exe := &model.Execution{TicketID: tk.ID, Kind: model.ExecKindDryrun, StartedAt: &now}
@@ -96,40 +98,6 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 }
 
 func (svc *TicketService) Get(id uint64) (*model.Ticket, error) { return svc.store.GetTicket(id) }
-
-func validateArgs(schema datatypes.JSON, args map[string]any) error {
-	allowed := map[string]bool{}
-	if len(schema) > 0 {
-		m := map[string]any{}
-		if err := json.Unmarshal(schema, &m); err == nil {
-			for k := range m {
-				allowed[k] = true
-			}
-		}
-	}
-	for k := range args {
-		if k == "only-print" || k == "--only-print" {
-			return errors.New("参数 only-print 为系统保留字，禁止传入")
-		}
-		if len(allowed) > 0 && !allowed[k] {
-			return fmt.Errorf("参数 %s 不在程序白名单内", k)
-		}
-	}
-	return nil
-}
-
-func buildArgs(args map[string]any) []string {
-	keys := make([]string, 0, len(args))
-	for k := range args {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	out := make([]string, 0, len(keys)*2)
-	for _, k := range keys {
-		out = append(out, "--"+k, fmt.Sprintf("%v", args[k]))
-	}
-	return out
-}
 
 func errString(e error) string {
 	if e == nil {
@@ -181,11 +149,14 @@ func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) 
 	tk.Status = model.StatusExecuting
 	_ = svc.store.UpdateTicket(tk)
 
-	var args map[string]any
+	var args []string
 	_ = json.Unmarshal(tk.Args, &args)
+
+	binaryPath := filepath.Join(svc.workspaceDir, p.Project, p.Name, p.EntryFile)
+	workDir := filepath.Join(svc.workspaceDir, p.Project, p.Name)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: p.BinaryPath, Interpreter: p.Interpreter, Args: buildArgs(args), DryRun: false,
-		TimeoutSec: p.TimeoutSec, WorkDir: ".",
+		BinaryPath: binaryPath, Interpreter: p.Interpreter, Args: args, DryRun: false,
+		TimeoutSec: p.TimeoutSec, WorkDir: workDir,
 	})
 
 	start := now

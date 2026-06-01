@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -14,12 +13,13 @@ import (
 )
 
 type AdminHandler struct {
-	store    *store.Store
-	programs *service.ProgramService
+	store        *store.Store
+	programs     *service.ProgramService
+	workspaceDir string
 }
 
-func NewAdminHandler(s *store.Store, p *service.ProgramService) *AdminHandler {
-	return &AdminHandler{store: s, programs: p}
+func NewAdminHandler(s *store.Store, p *service.ProgramService, workspaceDir string) *AdminHandler {
+	return &AdminHandler{store: s, programs: p, workspaceDir: workspaceDir}
 }
 
 func (h *AdminHandler) CreateUser(c *gin.Context) {
@@ -81,22 +81,30 @@ func (h *AdminHandler) CreateAPIKey(c *gin.Context) {
 }
 
 func (h *AdminHandler) CreateProgram(c *gin.Context) {
-	var req struct {
-		Project      string          `json:"project" binding:"required"`
-		Name         string          `json:"name" binding:"required"`
-		BinaryPath   string          `json:"binary_path" binding:"required"`
-		Interpreter  string          `json:"interpreter"`
-		ApproverID   uint64          `json:"approver_id" binding:"required"`
-		TimeoutSec   int             `json:"timeout_sec"`
-		ParamsSchema json.RawMessage `json:"params_schema"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	project := c.PostForm("project")
+	name := c.PostForm("name")
+	entryFile := c.PostForm("entry_file")
+	interpreter := c.PostForm("interpreter")
+	approverIDStr := c.PostForm("approver_id")
+	timeoutSecStr := c.PostForm("timeout_sec")
+
+	if project == "" || name == "" || entryFile == "" || interpreter == "" || approverIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project/name/entry_file/interpreter/approver_id 必填"})
 		return
 	}
+	approverID, _ := strconv.ParseUint(approverIDStr, 10, 64)
+	timeoutSec, _ := strconv.Atoi(timeoutSecStr)
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "multipart 表单解析失败"})
+		return
+	}
+	files := form.File["files"]
+
 	p, err := h.programs.Register(c.Request.Context(), service.RegisterInput{
-		Project: req.Project, Name: req.Name, BinaryPath: req.BinaryPath, Interpreter: req.Interpreter,
-		ApproverID: req.ApproverID, TimeoutSec: req.TimeoutSec, ParamsSchema: req.ParamsSchema,
+		Project: project, Name: name, EntryFile: entryFile, Interpreter: interpreter,
+		ApproverID: approverID, TimeoutSec: timeoutSec, Files: files,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -116,32 +124,36 @@ func (h *AdminHandler) ListPrograms(c *gin.Context) {
 
 func (h *AdminHandler) UpdateProgram(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	p, err := h.store.GetProgram(id)
+
+	var in service.UpdateInput
+
+	if v := c.PostForm("entry_file"); v != "" {
+		in.EntryFile = &v
+	}
+	if v := c.PostForm("interpreter"); v != "" {
+		in.Interpreter = &v
+	}
+	if v := c.PostForm("approver_id"); v != "" {
+		n, _ := strconv.ParseUint(v, 10, 64)
+		in.ApproverID = &n
+	}
+	if v := c.PostForm("timeout_sec"); v != "" {
+		n, _ := strconv.Atoi(v)
+		in.TimeoutSec = &n
+	}
+	if v := c.PostForm("enabled"); v != "" {
+		b := v == "true"
+		in.Enabled = &b
+	}
+
+	form, err := c.MultipartForm()
+	if err == nil {
+		in.Files = form.File["files"]
+	}
+
+	p, err := h.programs.Update(c.Request.Context(), id, in)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "程序不存在"})
-		return
-	}
-	var req struct {
-		Enabled     *bool   `json:"enabled"`
-		Interpreter *string `json:"interpreter"`
-		ApproverID  *uint64 `json:"approver_id"`
-		TimeoutSec  *int    `json:"timeout_sec"`
-	}
-	_ = c.ShouldBindJSON(&req)
-	if req.Enabled != nil {
-		p.Enabled = *req.Enabled
-	}
-	if req.Interpreter != nil {
-		p.Interpreter = *req.Interpreter
-	}
-	if req.ApproverID != nil {
-		p.ApproverID = *req.ApproverID
-	}
-	if req.TimeoutSec != nil {
-		p.TimeoutSec = *req.TimeoutSec
-	}
-	if err := h.store.UpdateProgram(p); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, p)

@@ -14,10 +14,10 @@ import (
 func TestApproveTriggersExecution(t *testing.T) {
 	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK"}}
 	svc, s := newTicketService(t, fe)
-	p := seedProgram(t, s, `{"env":"string"}`)
+	p := seedProgram(t, s)
 
 	tk, err := svc.Submit(context.Background(), SubmitInput{
-		Project: "demo", Name: "deploy", APIKeyID: 1, Args: map[string]any{"env": "prod"}})
+		Project: "demo", Name: "deploy", APIKeyID: 1, Args: []string{"env", "prod"}})
 	require.NoError(t, err)
 	require.Equal(t, model.StatusPendingApproval, tk.Status)
 
@@ -32,9 +32,9 @@ func TestApproveTriggersExecution(t *testing.T) {
 func TestApproveWrongUserRejected(t *testing.T) {
 	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK"}}
 	svc, s := newTicketService(t, fe)
-	p := seedProgram(t, s, `{"env":"string"}`)
+	p := seedProgram(t, s)
 	tk, _ := svc.Submit(context.Background(), SubmitInput{
-		Project: "demo", Name: "deploy", APIKeyID: 1, Args: map[string]any{"env": "prod"}})
+		Project: "demo", Name: "deploy", APIKeyID: 1, Args: []string{"env", "prod"}})
 
 	_, err := svc.Approve(context.Background(), tk.ID, p.ApproverID+999)
 	require.Error(t, err)
@@ -43,9 +43,9 @@ func TestApproveWrongUserRejected(t *testing.T) {
 func TestApproveExecFailed(t *testing.T) {
 	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK"}}
 	svc, s := newTicketService(t, fe)
-	p := seedProgram(t, s, `{"env":"string"}`)
+	p := seedProgram(t, s)
 	tk, _ := svc.Submit(context.Background(), SubmitInput{
-		Project: "demo", Name: "deploy", APIKeyID: 1, Args: map[string]any{"env": "prod"}})
+		Project: "demo", Name: "deploy", APIKeyID: 1, Args: []string{"env", "prod"}})
 
 	fe.result = &executor.ExecResult{ExitCode: 5, Stderr: "boom"}
 	out, err := svc.Approve(context.Background(), tk.ID, p.ApproverID)
@@ -56,9 +56,9 @@ func TestApproveExecFailed(t *testing.T) {
 func TestReject(t *testing.T) {
 	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK"}}
 	svc, s := newTicketService(t, fe)
-	p := seedProgram(t, s, `{"env":"string"}`)
+	p := seedProgram(t, s)
 	tk, _ := svc.Submit(context.Background(), SubmitInput{
-		Project: "demo", Name: "deploy", APIKeyID: 1, Args: map[string]any{"env": "prod"}})
+		Project: "demo", Name: "deploy", APIKeyID: 1, Args: []string{"env", "prod"}})
 
 	out, err := svc.Reject(tk.ID, p.ApproverID, "太危险")
 	require.NoError(t, err)
