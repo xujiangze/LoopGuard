@@ -97,3 +97,66 @@ func TestSubmitWithInterpreter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusPendingApproval, tk.Status)
 }
+
+func TestFormatExecReport(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		stdout   string
+		stderr   string
+		exitCode int
+		result   string
+		want     []string
+	}{
+		{
+			name:     "dryrun pass with output",
+			command:  "python3 /bin/deploy --env prod --only-print",
+			stdout:   "将执行: kubectl apply\nDRYRUN-OK",
+			stderr:   "",
+			exitCode: 0,
+			result:   "校验: 通过",
+			want: []string{
+				"# 命令\npython3 /bin/deploy --env prod --only-print",
+				"# stdout\n将执行: kubectl apply\nDRYRUN-OK",
+				"# stderr\n(无)",
+				"# 结果\n退出码: 0 | 校验: 通过",
+			},
+		},
+		{
+			name:     "exec fail with stderr",
+			command:  "/bin/deploy --env prod",
+			stdout:   "",
+			stderr:   "error: connection refused",
+			exitCode: 1,
+			result:   "校验: 失败 - dry-run 退出码非 0（实际 1）",
+			want: []string{
+				"# 命令\n/bin/deploy --env prod",
+				"# stdout\n",
+				"# stderr\nerror: connection refused",
+				"# 结果\n退出码: 1 | 校验: 失败 - dry-run 退出码非 0（实际 1）",
+			},
+		},
+		{
+			name:     "real exec with duration",
+			command:  "python3 /bin/deploy --env prod",
+			stdout:   "deployment configured",
+			stderr:   "",
+			exitCode: 0,
+			result:   "耗时: 1523ms",
+			want: []string{
+				"# 命令\npython3 /bin/deploy --env prod",
+				"# stdout\ndeployment configured",
+				"# stderr\n(无)",
+				"# 结果\n退出码: 0 | 耗时: 1523ms",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatExecReport(tt.command, tt.stdout, tt.stderr, tt.exitCode, tt.result)
+			for _, w := range tt.want {
+				assert.Contains(t, got, w)
+			}
+		})
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"LoopGuard/internal/executor"
@@ -129,6 +130,23 @@ func errString(e error) string {
 		return ""
 	}
 	return e.Error()
+}
+
+func formatExecReport(command, stdout, stderr string, exitCode int, result string) string {
+	var sb strings.Builder
+	sb.WriteString("# 命令\n")
+	sb.WriteString(command)
+	sb.WriteString("\n\n# stdout\n")
+	sb.WriteString(stdout)
+	sb.WriteString("\n\n# stderr\n")
+	if stderr == "" {
+		sb.WriteString("(无)")
+	} else {
+		sb.WriteString(stderr)
+	}
+	sb.WriteString("\n\n# 结果\n")
+	sb.WriteString(fmt.Sprintf("退出码: %d | %s", exitCode, result))
+	return sb.String()
 }
 
 func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) (*model.Ticket, error) {
