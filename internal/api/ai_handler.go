@@ -49,6 +49,7 @@ func (h *AIHandler) Submit(c *gin.Context) {
 		resp["next_action"] = fmt.Sprintf(
 			"任务已提交，需人工审批。请通知用户访问审批链接 %s 找审批人审批。审批通过后任务将自动执行，你可轮询 GET /api/v1/tickets/%d 获取结果。",
 			url, tk.ID)
+		resp["dryrun_output"] = tk.DryrunOutput
 	case model.StatusDryrunFailed:
 		resp["next_action"] = "dry-run 校验未通过，任务未进入审批。请检查程序是否正确实现 --only-print（需输出 DRYRUN-OK 且退出码为 0）。详情见 dryrun_output。"
 		resp["dryrun_output"] = tk.DryrunOutput

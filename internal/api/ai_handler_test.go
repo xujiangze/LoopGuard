@@ -53,4 +53,10 @@ func TestAISubmitReturnsApprovalURL(t *testing.T) {
 	assert.NotEmpty(t, resp["approval_url"])
 	assert.NotEmpty(t, resp["next_action"])
 	assert.NotZero(t, resp["ticket_id"])
+
+	// Verify dryrun_output is returned for pending_approval
+	assert.NotEmpty(t, resp["dryrun_output"])
+	dryrunOut, ok := resp["dryrun_output"].(string)
+	require.True(t, ok)
+	assert.Contains(t, dryrunOut, "# 命令")
 }
