@@ -25,6 +25,7 @@ export interface Ticket {
   submitted_by: number
   approver_id: number
   dryrun_output: string
+  exec_output: string
   approved_by: number | null
   approved_at: string | null
   reject_reason: string
