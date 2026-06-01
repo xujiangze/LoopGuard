@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"LoopGuard/internal/executor"
@@ -33,7 +34,10 @@ func seedProgram(t *testing.T, s *store.Store, schema string) *model.Program {
 }
 
 func TestSubmitTicketDryrunPass(t *testing.T) {
-	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK\nwill deploy"}}
+	fe := &fakeExecutor{result: &executor.ExecResult{
+		Command: "/bin/deploy --env prod --only-print",
+		ExitCode: 0, Stdout: "DRYRUN-OK\nwill deploy", Stderr: "",
+	}}
 	svc, s := newTicketService(t, fe)
 	seedProgram(t, s, `{"env":"string"}`)
 
@@ -43,11 +47,16 @@ func TestSubmitTicketDryrunPass(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusPendingApproval, tk.Status)
+	assert.Contains(t, tk.DryrunOutput, "# 命令")
 	assert.Contains(t, tk.DryrunOutput, "DRYRUN-OK")
+	assert.Contains(t, tk.DryrunOutput, "校验: 通过")
 }
 
 func TestSubmitTicketDryrunFail(t *testing.T) {
-	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "no marker"}}
+	fe := &fakeExecutor{result: &executor.ExecResult{
+		Command: "/bin/deploy --env prod --only-print",
+		ExitCode: 0, Stdout: "no marker", Stderr: "",
+	}}
 	svc, s := newTicketService(t, fe)
 	seedProgram(t, s, `{"env":"string"}`)
 
@@ -56,6 +65,8 @@ func TestSubmitTicketDryrunFail(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, model.StatusDryrunFailed, tk.Status)
+	assert.Contains(t, tk.DryrunOutput, "# 命令")
+	assert.Contains(t, tk.DryrunOutput, "校验: 失败")
 }
 
 func TestSubmitRejectsUnknownArg(t *testing.T) {
@@ -160,3 +171,36 @@ func TestFormatExecReport(t *testing.T) {
 		})
 	}
 }
+
+func TestSubmitTicketDryrunRunError(t *testing.T) {
+	fe := &fakeExecutor{result: nil, err: errors.New("binary not found")}
+	svc, s := newTicketService(t, fe)
+	seedProgram(t, s, `{"env":"string"}`)
+
+	tk, err := svc.Submit(context.Background(), SubmitInput{
+		Project: "demo", Name: "deploy", APIKeyID: 7,
+		Args: map[string]any{"env": "prod"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, model.StatusDryrunFailed, tk.Status)
+	assert.Contains(t, tk.DryrunOutput, "# 命令")
+	assert.Contains(t, tk.DryrunOutput, "binary not found")
+}
+
+func TestSubmitTicketDryrunWithStderr(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{
+		Command: "python3 /bin/deploy --env prod --only-print",
+		ExitCode: 0, Stdout: "DRYRUN-OK", Stderr: "warning: deprecated API",
+	}}
+	svc, s := newTicketService(t, fe)
+	seedProgram(t, s, `{"env":"string"}`)
+
+	tk, err := svc.Submit(context.Background(), SubmitInput{
+		Project: "demo", Name: "deploy", APIKeyID: 7,
+		Args: map[string]any{"env": "prod"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, model.StatusPendingApproval, tk.Status)
+	assert.Contains(t, tk.DryrunOutput, "# stderr\nwarning: deprecated API")
+}
+

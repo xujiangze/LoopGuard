@@ -73,17 +73,23 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 	_ = svc.store.CreateExecution(exe)
 
 	if runErr != nil || res == nil {
+		cmd := "N/A"
+		if res != nil {
+			cmd = res.Command
+		}
 		tk.Status = model.StatusDryrunFailed
-		tk.DryrunOutput = "dry-run 执行错误：" + errString(runErr)
+		tk.DryrunOutput = formatExecReport(cmd, "", "", -1, "执行错误: "+errString(runErr))
 		_ = svc.store.UpdateTicket(tk)
 		return tk, nil
 	}
-	tk.DryrunOutput = res.Stdout
-	if v := ValidateDryrun(res); !v.Passed {
+
+	v := ValidateDryrun(res)
+	if !v.Passed {
 		tk.Status = model.StatusDryrunFailed
-		tk.DryrunOutput = res.Stdout + "\n---\n校验失败：" + v.Reason
+		tk.DryrunOutput = formatExecReport(res.Command, res.Stdout, res.Stderr, res.ExitCode, "校验: 失败 - "+v.Reason)
 	} else {
 		tk.Status = model.StatusPendingApproval
+		tk.DryrunOutput = formatExecReport(res.Command, res.Stdout, res.Stderr, res.ExitCode, "校验: 通过")
 	}
 	_ = svc.store.UpdateTicket(tk)
 	return tk, nil
