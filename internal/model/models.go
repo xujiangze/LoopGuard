@@ -52,6 +52,7 @@ type Ticket struct {
 	SubmittedBy  uint64         `gorm:"not null" json:"submitted_by"`
 	ApproverID   uint64         `gorm:"not null;index" json:"approver_id"`
 	DryrunOutput string         `gorm:"type:mediumtext" json:"dryrun_output"`
+	ExecOutput   string         `gorm:"type:mediumtext" json:"exec_output"`
 	ApprovedBy   *uint64        `json:"approved_by"`
 	ApprovedAt   *time.Time     `json:"approved_at"`
 	RejectReason string         `gorm:"size:512" json:"reject_reason"`
