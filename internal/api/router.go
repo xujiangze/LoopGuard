@@ -27,7 +27,7 @@ func NewRouter(d Deps) *gin.Engine {
 		AllowOriginFunc: func(origin string) bool {
 			return true
 		},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -56,6 +56,14 @@ func NewRouter(d Deps) *gin.Engine {
 	jwtGrp.GET("/tickets", human.ListMine)
 	jwtGrp.POST("/tickets/:id/approve", human.Approve)
 	jwtGrp.POST("/tickets/:id/reject", human.Reject)
+
+	// Webhook 管理（JWT 认证，admin 或 user 角色）
+	webhookHandler := NewWebhookHandler(d.Store)
+	jwtGrp.POST("/webhooks", webhookHandler.CreateWebhook)
+	jwtGrp.GET("/webhooks", webhookHandler.ListWebhooks)
+	jwtGrp.DELETE("/webhooks/:id", webhookHandler.DeleteWebhook)
+	jwtGrp.PATCH("/webhooks/:id", webhookHandler.ToggleWebhook)
+	jwtGrp.GET("/webhooks/:id/deliveries", webhookHandler.ListDeliveries)
 
 	adminGrp := v1.Group("", JWTAuth(d.Cfg.JWTSecret), AdminOnly())
 	adminGrp.POST("/programs", admin.CreateProgram)

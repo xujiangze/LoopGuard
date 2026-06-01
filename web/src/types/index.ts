@@ -115,3 +115,39 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   exec_failed: "执行失败",
   rejected: "已驳回",
 }
+
+export interface WebhookConfig {
+  id: number
+  program_id: number
+  name: string
+  url: string
+  enabled: boolean
+  event_types: string
+  created_at: string
+  updated_at: string
+}
+
+export interface WebhookDelivery {
+  id: number
+  webhook_id: number
+  ticket_id: number
+  event_type: string
+  status_code: number
+  response: string
+  delivered_at: string | null
+}
+
+export type WebhookEventType =
+  | "ticket.pending_approval"
+  | "ticket.dryrun_failed"
+  | "ticket.done"
+  | "ticket.exec_failed"
+  | "ticket.rejected"
+
+export const WEBHOOK_EVENT_LABELS: Record<WebhookEventType, string> = {
+  "ticket.pending_approval": "待审批",
+  "ticket.dryrun_failed": "Dry-run 失败",
+  "ticket.done": "执行完成",
+  "ticket.exec_failed": "执行失败",
+  "ticket.rejected": "已驳回",
+}

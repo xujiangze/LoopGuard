@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -164,10 +165,14 @@ func (h *HumanHandler) ListMine(c *gin.Context) {
 
 	items := make([]ticketListItem, len(ts))
 	for i, tk := range ts {
+		args := make([]string, 0)
+		if len(tk.Args) > 0 {
+			_ = json.Unmarshal(tk.Args, &args)
+		}
 		item := ticketListItem{
 			ID:          tk.ID,
 			ProgramID:   tk.ProgramID,
-			Args:        tk.Args,
+			Args:        args,
 			Status:      tk.Status,
 			SubmittedBy: tk.SubmittedBy,
 			ApproverID:  tk.ApproverID,
@@ -196,7 +201,7 @@ type ticketListItem struct {
 	ProgramID       uint64            `json:"program_id"`
 	ProgramProject  string            `json:"program_project"`
 	ProgramName     string            `json:"program_name"`
-	Args            []byte            `json:"args"`
+	Args            []string          `json:"args"`
 	Status          model.TicketStatus `json:"status"`
 	SubmittedBy     uint64            `json:"submitted_by"`
 	SubmittedByName string            `json:"submitted_by_name"`

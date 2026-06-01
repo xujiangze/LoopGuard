@@ -74,4 +74,31 @@ export const api = {
     }
     return res.text()
   },
+
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
+
+  // Webhook API
+  webhooks: {
+    list: (programId?: number) =>
+      programId
+        ? api.get<import("../types").WebhookConfig[]>(`/webhooks?program_id=${programId}`)
+        : api.get<import("../types").WebhookConfig[]>("/webhooks"),
+
+    create: (data: {
+      program_id: number
+      name: string
+      url: string
+      enabled: boolean
+      event_types: string
+    }) => api.post<import("../types").WebhookConfig>("/webhooks", data),
+
+    delete: (id: number) => api.del(`/webhooks/${id}`),
+
+    toggle: (id: number, enabled: boolean) =>
+      api.patch<import("../types").WebhookConfig>(`/webhooks/${id}`, { enabled }),
+
+    deliveries: (id: number) =>
+      api.get<import("../types").WebhookDelivery[]>(`/webhooks/${id}/deliveries`),
+  },
 }

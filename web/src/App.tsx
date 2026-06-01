@@ -10,6 +10,7 @@ import { ProgramPage } from "@/pages/ProgramPage"
 import { ProgramDetailPage } from "@/pages/ProgramDetailPage"
 import { UserPage } from "@/pages/UserPage"
 import { ApiKeyPage } from "@/pages/ApiKeyPage"
+import { WebhookPage } from "@/pages/WebhookPage"
 import { Toaster } from "@/components/ui/sonner"
 
 export default function App() {
@@ -56,6 +57,14 @@ export default function App() {
               element={
                 <AdminRoute>
                   <ApiKeyPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/webhooks"
+              element={
+                <AdminRoute>
+                  <WebhookPage />
                 </AdminRoute>
               }
             />

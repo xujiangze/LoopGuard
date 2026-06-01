@@ -66,7 +66,8 @@ function borderClass(s: TicketStatus) {
   }
 }
 
-function truncateArgs(args: string[], maxLen = 40) {
+function truncateArgs(args: string[] | null | undefined, maxLen = 40) {
+  if (!args || !Array.isArray(args)) return "-"
   const joined = args.join(" ")
   if (joined.length <= maxLen) return joined
   return joined.slice(0, maxLen) + "..."

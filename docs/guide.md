@@ -402,7 +402,7 @@ AI Agent 提交工单：
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/tickets \
-  -H "X-API-Key: lg_xxxxxxxx" \
+  -H "X-API-Key: lg_32f3d8dc4ecc4bfd2d2732677ad620d7f0043f5966979c7e" \
   -H "Content-Type: application/json" \
   -d '{"project":"tsunami_ipban","name":"entry_ipban","args":["-m","group_unban","-e","never","-i","9.8.7.6","--skip-confirm"]}'
 ```

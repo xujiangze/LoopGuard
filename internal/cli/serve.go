@@ -25,9 +25,12 @@ func ServeCmd() *cobra.Command {
 				return err
 			}
 			var ex executor.Executor = executor.NewProcessExecutor()
+			ticketSvc := service.NewTicketService(s, ex, cfg.WorkspaceDir)
+			webhookSvc := service.NewWebhookService(s)
+			ticketSvc.SetWebhook(webhookSvc, cfg.BaseURL)
 			deps := api.Deps{
 				Store:      s,
-				TicketSvc:  service.NewTicketService(s, ex, cfg.WorkspaceDir),
+				TicketSvc:  ticketSvc,
 				ProgramSvc: service.NewProgramService(s, ex, cfg.WorkspaceDir),
 				Cfg:        cfg,
 			}

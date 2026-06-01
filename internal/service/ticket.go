@@ -16,14 +16,33 @@ import (
 	"gorm.io/datatypes"
 )
 
+// WebhookTrigger 定义 webhook 触发接口
+type WebhookTrigger interface {
+	Trigger(ticketID uint64, eventType model.TicketStatus, approvalURL string)
+}
+
 type TicketService struct {
 	store        *store.Store
 	exec         executor.Executor
 	workspaceDir string
+	webhook      WebhookTrigger
+	baseURL      string
 }
 
 func NewTicketService(s *store.Store, e executor.Executor, workspaceDir string) *TicketService {
 	return &TicketService{store: s, exec: e, workspaceDir: workspaceDir}
+}
+
+func (svc *TicketService) SetWebhook(w WebhookTrigger, baseURL string) {
+	svc.webhook = w
+	svc.baseURL = baseURL
+}
+
+func (svc *TicketService) triggerWebhook(ticketID uint64, status model.TicketStatus) {
+	if svc.webhook != nil {
+		url := fmt.Sprintf("%s/tickets/%d", svc.baseURL, ticketID)
+		svc.webhook.Trigger(ticketID, status, url)
+	}
 }
 
 type SubmitInput struct {
@@ -55,10 +74,9 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 		return nil, err
 	}
 
-	binaryPath := filepath.Join(svc.workspaceDir, p.Project, p.Name, p.EntryFile)
 	workDir := filepath.Join(svc.workspaceDir, p.Project, p.Name)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: binaryPath, Interpreter: p.Interpreter, Args: in.Args, DryRun: true,
+		BinaryPath: p.EntryFile, Interpreter: p.Interpreter, Args: in.Args, DryRun: true,
 		TimeoutSec: p.TimeoutSec, WorkDir: workDir,
 	})
 	now := time.Now()
@@ -82,6 +100,7 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 		tk.Status = model.StatusDryrunFailed
 		tk.DryrunOutput = formatExecReport(cmd, "", "", -1, "执行错误: "+errString(runErr))
 		_ = svc.store.UpdateTicket(tk)
+		svc.triggerWebhook(tk.ID, model.StatusDryrunFailed)
 		return tk, nil
 	}
 
@@ -94,6 +113,7 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 		tk.DryrunOutput = formatExecReport(res.Command, res.Stdout, res.Stderr, res.ExitCode, "校验: 通过")
 	}
 	_ = svc.store.UpdateTicket(tk)
+	svc.triggerWebhook(tk.ID, tk.Status)
 	return tk, nil
 }
 
@@ -152,10 +172,9 @@ func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) 
 	var args []string
 	_ = json.Unmarshal(tk.Args, &args)
 
-	binaryPath := filepath.Join(svc.workspaceDir, p.Project, p.Name, p.EntryFile)
 	workDir := filepath.Join(svc.workspaceDir, p.Project, p.Name)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: binaryPath, Interpreter: p.Interpreter, Args: args, DryRun: false,
+		BinaryPath: p.EntryFile, Interpreter: p.Interpreter, Args: args, DryRun: false,
 		TimeoutSec: p.TimeoutSec, WorkDir: workDir,
 	})
 
@@ -189,6 +208,7 @@ func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) 
 			fmt.Sprintf("耗时: %dms", res.DurationMs))
 	}
 	_ = svc.store.UpdateTicket(tk)
+	svc.triggerWebhook(tk.ID, tk.Status)
 	return tk, nil
 }
 
@@ -206,5 +226,6 @@ func (svc *TicketService) Reject(ticketID, userID uint64, reason string) (*model
 	tk.Status = model.StatusRejected
 	tk.RejectReason = reason
 	_ = svc.store.UpdateTicket(tk)
+	svc.triggerWebhook(tk.ID, model.StatusRejected)
 	return tk, nil
 }

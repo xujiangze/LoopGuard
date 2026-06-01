@@ -21,6 +21,7 @@ func (s *Store) AutoMigrate() error {
 	if err := s.db.AutoMigrate(
 		&model.User{}, &model.APIKey{}, &model.Program{},
 		&model.ProgramVersion{}, &model.Ticket{}, &model.Execution{},
+		&model.WebhookConfig{}, &model.WebhookDelivery{},
 	); err != nil {
 		return err
 	}
@@ -178,4 +179,33 @@ func (s *Store) ListExecutionsByTicket(ticketID uint64) ([]model.Execution, erro
 	var es []model.Execution
 	err := s.db.Where("ticket_id = ?", ticketID).Order("id asc").Find(&es).Error
 	return es, err
+}
+
+// Webhooks
+func (s *Store) CreateWebhook(w *model.WebhookConfig) error { return s.db.Create(w).Error }
+func (s *Store) GetWebhook(id uint64) (*model.WebhookConfig, error) {
+	var w model.WebhookConfig
+	err := s.db.First(&w, id).Error
+	return &w, err
+}
+func (s *Store) GetWebhooksByProgram(programID uint64) ([]model.WebhookConfig, error) {
+	var ws []model.WebhookConfig
+	err := s.db.Where("program_id = ?", programID).Order("id desc").Find(&ws).Error
+	return ws, err
+}
+func (s *Store) GetWebhooksByEventType(eventType string) ([]model.WebhookConfig, error) {
+	var ws []model.WebhookConfig
+	// 使用 LIKE 查询，因为 EventTypes 是逗号分隔的字符串
+	err := s.db.Where("event_types LIKE ?", "%"+eventType+"%").Find(&ws).Error
+	return ws, err
+}
+func (s *Store) DeleteWebhook(id uint64) error { return s.db.Delete(&model.WebhookConfig{}, id).Error }
+func (s *Store) UpdateWebhook(w *model.WebhookConfig) error { return s.db.Save(w).Error }
+
+// Webhook Deliveries
+func (s *Store) CreateWebhookDelivery(d *model.WebhookDelivery) error { return s.db.Create(d).Error }
+func (s *Store) GetWebhookDeliveries(webhookID uint64) ([]model.WebhookDelivery, error) {
+	var ds []model.WebhookDelivery
+	err := s.db.Where("webhook_id = ?", webhookID).Order("id desc").Find(&ds).Error
+	return ds, err
 }

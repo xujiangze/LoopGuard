@@ -12,6 +12,7 @@ const ADMIN_ITEMS = [
   { label: "程序管理", path: "/admin/programs" },
   { label: "用户管理", path: "/admin/users" },
   { label: "API Key 管理", path: "/admin/api-keys" },
+  { label: "Webhook 管理", path: "/admin/webhooks" },
 ]
 
 export function Layout() {

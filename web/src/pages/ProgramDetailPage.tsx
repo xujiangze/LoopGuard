@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { api } from "@/lib/api"
-import type { Program, ProgramVersion, ProgramFileInfo, User } from "@/types"
+import type { Program, ProgramVersion, ProgramFileInfo, User, WebhookConfig, WebhookDelivery, WebhookEventType } from "@/types"
+import { WEBHOOK_EVENT_LABELS } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -15,6 +16,9 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
 export function ProgramDetailPage() {
@@ -30,6 +34,16 @@ export function ProgramDetailPage() {
   const [versionFileContent, setVersionFileContent] = useState<{ version: number; name: string; content: string } | null>(null)
   const [rollbackTarget, setRollbackTarget] = useState<ProgramVersion | null>(null)
   const [rollbacking, setRollbacking] = useState(false)
+  const [webhooks, setWebhooks] = useState<WebhookConfig[]>([])
+  const [webhookCreateOpen, setWebhookCreateOpen] = useState(false)
+  const [webhookDeleteTarget, setWebhookDeleteTarget] = useState<WebhookConfig | null>(null)
+  const [webhookDeliveryTarget, setWebhookDeliveryTarget] = useState<WebhookConfig | null>(null)
+  const [webhookDeliveries, setWebhookDeliveries] = useState<WebhookDelivery[]>([])
+  const [webhookForm, setWebhookForm] = useState({ name: "", url: "", event_types: [] as WebhookEventType[] })
+
+  const ALL_WEBHOOK_EVENTS: WebhookEventType[] = [
+    "ticket.pending_approval", "ticket.dryrun_failed", "ticket.done", "ticket.exec_failed", "ticket.rejected",
+  ]
 
   const fetchProgram = () => {
     if (!id) return
@@ -43,6 +57,7 @@ export function ProgramDetailPage() {
       if (p) {
         api.get<ProgramFileInfo[]>(`/programs/${p.id}/files`).then(setFiles).catch(() => setFiles([]))
         api.get<ProgramVersion[]>(`/programs/${p.id}/versions`).then(setVersions).catch(() => setVersions([]))
+        api.webhooks.list(p.id).then(setWebhooks).catch(() => setWebhooks([]))
       }
     }).finally(() => setLoading(false))
   }
@@ -109,6 +124,7 @@ export function ProgramDetailPage() {
           <TabsTrigger value="info">基本信息</TabsTrigger>
           <TabsTrigger value="files">文件</TabsTrigger>
           <TabsTrigger value="versions">版本历史</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhook</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
@@ -218,7 +234,169 @@ export function ProgramDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="webhooks">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>Webhook 配置</CardTitle>
+              <Button size="sm" onClick={() => setWebhookCreateOpen(true)}>创建 Webhook</Button>
+            </CardHeader>
+            <CardContent>
+              {webhooks.length === 0 ? (
+                <p className="text-muted-foreground text-sm">暂无 Webhook，点击"创建 Webhook"配置企业微信通知</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>名称</TableHead>
+                      <TableHead>事件类型</TableHead>
+                      <TableHead className="w-20">状态</TableHead>
+                      <TableHead className="w-48 text-right">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {webhooks.map((w) => (
+                      <TableRow key={w.id}>
+                        <TableCell className="font-medium">{w.name}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {w.event_types.split(",").map((e) => (
+                              <Badge key={e} variant="secondary" className="text-xs">
+                                {WEBHOOK_EVENT_LABELS[e as WebhookEventType] ?? e}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch checked={w.enabled} onCheckedChange={async () => {
+                              try { await api.webhooks.toggle(w.id, !w.enabled); api.webhooks.list(program!.id).then(setWebhooks) }
+                              catch { toast.error("操作失败") }
+                            }} />
+                            <span className="text-xs text-muted-foreground">{w.enabled ? "启用" : "禁用"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              setWebhookDeliveryTarget(w)
+                              try { const ds = await api.webhooks.deliveries(w.id); setWebhookDeliveries(ds ?? []) } catch { setWebhookDeliveries([]) }
+                            }}>投递记录</Button>
+                            <Button variant="outline" size="sm" className="text-destructive" onClick={() => setWebhookDeleteTarget(w)}>删除</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Webhook 标签页内容 - 在 Tabs 外独立渲染弹窗 */}
+      {/* 创建 Webhook 弹窗 */}
+      <Dialog open={webhookCreateOpen} onOpenChange={setWebhookCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>创建 Webhook</DialogTitle>
+            <DialogDescription>为 {program?.project}/{program?.name} 配置企业微信通知</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>名称</Label>
+              <Input className="mt-1" value={webhookForm.name} onChange={(e) => setWebhookForm((p) => ({ ...p, name: e.target.value }))} placeholder="Webhook 名称" />
+            </div>
+            <div>
+              <Label>Webhook URL</Label>
+              <Input className="mt-1" value={webhookForm.url} onChange={(e) => setWebhookForm((p) => ({ ...p, url: e.target.value }))} placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
+            </div>
+            <div>
+              <Label>事件类型</Label>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {ALL_WEBHOOK_EVENTS.map((evt) => (
+                  <label key={evt} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={webhookForm.event_types.includes(evt)} onChange={() => setWebhookForm((p) => ({ ...p, event_types: p.event_types.includes(evt) ? p.event_types.filter((e) => e !== evt) : [...p.event_types, evt] }))} className="rounded" />
+                    <span className="text-sm">{WEBHOOK_EVENT_LABELS[evt]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWebhookCreateOpen(false)}>取消</Button>
+            <Button onClick={async () => {
+              if (!program) return
+              if (!webhookForm.name.trim()) { toast.error("请输入名称"); return }
+              if (!webhookForm.url.includes("qyapi.weixin.qq.com")) { toast.error("URL 必须包含 qyapi.weixin.qq.com"); return }
+              if (webhookForm.event_types.length === 0) { toast.error("请选择事件类型"); return }
+              try {
+                await api.webhooks.create({ program_id: program.id, name: webhookForm.name, url: webhookForm.url, enabled: true, event_types: webhookForm.event_types.join(",") })
+                toast.success("Webhook 创建成功")
+                setWebhookCreateOpen(false)
+                setWebhookForm({ name: "", url: "", event_types: [] })
+                api.webhooks.list(program.id).then(setWebhooks)
+              } catch (err) { toast.error("创建失败", { description: err instanceof Error ? err.message : "" }) }
+            }}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除 Webhook 弹窗 */}
+      <Dialog open={!!webhookDeleteTarget} onOpenChange={(open) => !open && setWebhookDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+            <DialogDescription>确定删除 Webhook <strong>{webhookDeleteTarget?.name}</strong>？</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWebhookDeleteTarget(null)}>取消</Button>
+            <Button variant="destructive" onClick={async () => {
+              if (!webhookDeleteTarget || !program) return
+              try {
+                await api.webhooks.delete(webhookDeleteTarget.id)
+                toast.success("已删除")
+                setWebhookDeleteTarget(null)
+                api.webhooks.list(program.id).then(setWebhooks)
+              } catch { toast.error("删除失败") }
+            }}>删除</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Webhook 投递记录弹窗 */}
+      <Dialog open={!!webhookDeliveryTarget} onOpenChange={(open) => !open && setWebhookDeliveryTarget(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>投递记录 — {webhookDeliveryTarget?.name}</DialogTitle>
+          </DialogHeader>
+          {webhookDeliveries.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4">暂无投递记录</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>工单</TableHead>
+                  <TableHead>事件</TableHead>
+                  <TableHead>状态码</TableHead>
+                  <TableHead>时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {webhookDeliveries.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell>#{d.ticket_id}</TableCell>
+                    <TableCell><Badge variant="secondary" className="text-xs">{WEBHOOK_EVENT_LABELS[d.event_type as WebhookEventType] ?? d.event_type}</Badge></TableCell>
+                    <TableCell><Badge variant={d.status_code >= 200 && d.status_code < 300 ? "default" : "destructive"}>{d.status_code}</Badge></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{d.delivered_at ?? "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 回滚确认弹窗 */}
       <Dialog open={!!rollbackTarget} onOpenChange={(open) => !open && setRollbackTarget(null)}>
