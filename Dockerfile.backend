@@ -1,0 +1,19 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+ENV GOPROXY=https://goproxy.cn,direct
+# 创建 stub dist 以满足 go:embed dist/* 编译
+RUN mkdir -p web/dist && echo "stub" > web/dist/index.html
+COPY cmd ./cmd
+COPY internal ./internal
+COPY web/embed.go ./web/embed.go
+RUN CGO_ENABLED=0 go build -o /loopguard ./cmd/loopguard
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY --from=builder /loopguard /usr/local/bin/loopguard
+RUN mkdir -p /app/workspace
+EXPOSE 8080
+ENTRYPOINT ["loopguard"]
+CMD ["serve"]
