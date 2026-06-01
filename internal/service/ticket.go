@@ -145,7 +145,7 @@ func formatExecReport(command, stdout, stderr string, exitCode int, result strin
 		sb.WriteString(stderr)
 	}
 	sb.WriteString("\n\n# 结果\n")
-	sb.WriteString(fmt.Sprintf("退出码: %d | %s", exitCode, result))
+	fmt.Fprintf(&sb, "退出码: %d | %s", exitCode, result)
 	return sb.String()
 }
 
