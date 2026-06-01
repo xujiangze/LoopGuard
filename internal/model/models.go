@@ -34,6 +34,7 @@ type Program struct {
 	Project        string         `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"project"`
 	Name           string         `gorm:"size:128;not null;uniqueIndex:uk_project_name" json:"name"`
 	BinaryPath     string         `gorm:"size:512;not null" json:"binary_path"`
+	Interpreter    string         `gorm:"size:256;default:''" json:"interpreter"`
 	HelpText       string         `gorm:"type:text" json:"help_text"`
 	ParamsSchema   datatypes.JSON `gorm:"type:json" json:"params_schema"`
 	ApproverID     uint64         `gorm:"not null" json:"approver_id"`

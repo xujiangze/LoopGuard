@@ -55,7 +55,7 @@ func (svc *TicketService) Submit(ctx context.Context, in SubmitInput) (*model.Ti
 
 	cliArgs := buildArgs(in.Args)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: p.BinaryPath, Args: cliArgs, DryRun: true,
+		BinaryPath: p.BinaryPath, Interpreter: p.Interpreter, Args: cliArgs, DryRun: true,
 		TimeoutSec: p.TimeoutSec, WorkDir: ".",
 	})
 	now := time.Now()
@@ -160,7 +160,7 @@ func (svc *TicketService) Approve(ctx context.Context, ticketID, userID uint64) 
 	var args map[string]any
 	_ = json.Unmarshal(tk.Args, &args)
 	res, runErr := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: p.BinaryPath, Args: buildArgs(args), DryRun: false,
+		BinaryPath: p.BinaryPath, Interpreter: p.Interpreter, Args: buildArgs(args), DryRun: false,
 		TimeoutSec: p.TimeoutSec, WorkDir: ".",
 	})
 

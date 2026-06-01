@@ -27,7 +27,12 @@ func (p *ProcessExecutor) Run(ctx context.Context, req ExecRequest) (*ExecResult
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(runCtx, req.BinaryPath, args...)
+	var cmd *exec.Cmd
+	if req.Interpreter != "" {
+		cmd = exec.CommandContext(runCtx, req.Interpreter, append([]string{req.BinaryPath}, args...)...)
+	} else {
+		cmd = exec.CommandContext(runCtx, req.BinaryPath, args...)
+	}
 	cmd.Dir = req.WorkDir
 	cmd.Env = req.Env
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -47,7 +52,7 @@ func (p *ProcessExecutor) Run(ctx context.Context, req ExecRequest) (*ExecResult
 	dur := time.Since(start).Milliseconds()
 
 	res := &ExecResult{
-		Command:    req.BinaryPath + " " + strings.Join(args, " "),
+		Command:    buildCommandString(req, args),
 		Stdout:     stdout.String(),
 		Stderr:     stderr.String(),
 		DurationMs: dur,
@@ -68,4 +73,11 @@ func (p *ProcessExecutor) Run(ctx context.Context, req ExecRequest) (*ExecResult
 	}
 	res.ExitCode = 0
 	return res, nil
+}
+
+func buildCommandString(req ExecRequest, args []string) string {
+	if req.Interpreter != "" {
+		return req.Interpreter + " " + req.BinaryPath + " " + strings.Join(args, " ")
+	}
+	return req.BinaryPath + " " + strings.Join(args, " ")
 }

@@ -37,6 +37,7 @@ export interface Program {
   project: string
   name: string
   binary_path: string
+  interpreter: string
   help_text: string
   params_schema: Record<string, unknown> | null
   approver_id: number

@@ -41,6 +41,7 @@ export function ProgramPage() {
     project: "",
     name: "",
     binary_path: "",
+    interpreter: "",
     approver_id: "",
     timeout_sec: "300",
   })
@@ -48,6 +49,7 @@ export function ProgramPage() {
 
   const [editForm, setEditForm] = useState({
     enabled: true,
+    interpreter: "",
     approver_id: "",
     timeout_sec: "300",
   })
@@ -89,13 +91,14 @@ export function ProgramPage() {
         project: form.project,
         name: form.name,
         binary_path: form.binary_path,
+        interpreter: form.interpreter || "",
         approver_id: Number(form.approver_id),
         timeout_sec: Number(form.timeout_sec) || 300,
         params_schema: Object.keys(schema).length > 0 ? schema : null,
       })
       toast.success("程序注册成功", { description: `${form.project}/${form.name} 已添加到白名单` })
       setCreateOpen(false)
-      setForm({ project: "", name: "", binary_path: "", approver_id: "", timeout_sec: "300" })
+      setForm({ project: "", name: "", binary_path: "", interpreter: "", approver_id: "", timeout_sec: "300" })
       setParams([{ key: "", desc: "" }])
       fetchData()
     } catch (err) {
@@ -107,7 +110,7 @@ export function ProgramPage() {
 
   const openEdit = (p: Program) => {
     setEditTarget(p)
-    setEditForm({ enabled: p.enabled, approver_id: String(p.approver_id), timeout_sec: String(p.timeout_sec) })
+    setEditForm({ enabled: p.enabled, interpreter: p.interpreter, approver_id: String(p.approver_id), timeout_sec: String(p.timeout_sec) })
     setEditOpen(true)
   }
 
@@ -117,6 +120,7 @@ export function ProgramPage() {
     try {
       await api.put(`/programs/${editTarget.id}`, {
         enabled: editForm.enabled,
+        interpreter: editForm.interpreter,
         approver_id: Number(editForm.approver_id),
         timeout_sec: Number(editForm.timeout_sec) || 300,
       })
@@ -175,7 +179,7 @@ export function ProgramPage() {
               <TableRow key={p.id}>
                 <TableCell>
                   <div className="font-mono font-medium">{p.project}/{p.name}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{p.binary_path}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{p.interpreter ? `${p.interpreter} ${p.binary_path}` : p.binary_path}</div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -233,6 +237,11 @@ export function ProgramPage() {
               <div className="space-y-1">
                 <Label>二进制路径 <span className="text-destructive">*</span></Label>
                 <Input value={form.binary_path} onChange={(e) => setForm({ ...form, binary_path: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>解释器</Label>
+                <Input placeholder="可选，如 python3" value={form.interpreter} onChange={(e) => setForm({ ...form, interpreter: e.target.value })} />
+                <p className="text-xs text-muted-foreground">留空则直接执行二进制，填写后以 &ldquo;解释器 脚本路径&rdquo; 方式执行</p>
               </div>
             </div>
 
@@ -316,6 +325,11 @@ export function ProgramPage() {
                 checked={editForm.enabled}
                 onCheckedChange={(checked: boolean) => setEditForm({ ...editForm, enabled: checked })}
               />
+            </div>
+            <div className="space-y-1">
+              <Label>解释器</Label>
+              <Input placeholder="可选，如 python3" value={editForm.interpreter} onChange={(e) => setEditForm({ ...editForm, interpreter: e.target.value })} />
+              <p className="text-xs text-muted-foreground">留空则直接执行二进制</p>
             </div>
             <div className="space-y-1">
               <Label>审批人</Label>

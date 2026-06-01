@@ -82,3 +82,18 @@ func TestSubmitRejectsOnlyPrintInArgs(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func TestSubmitWithInterpreter(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "DRYRUN-OK\npython output"}}
+	svc, s := newTicketService(t, fe)
+	prog := seedProgram(t, s, `{"env":"string"}`)
+	prog.Interpreter = "python3"
+	require.NoError(t, s.UpdateProgram(prog))
+
+	tk, err := svc.Submit(context.Background(), SubmitInput{
+		Project: "demo", Name: "deploy", APIKeyID: 7,
+		Args: map[string]any{"env": "prod"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, model.StatusPendingApproval, tk.Status)
+}

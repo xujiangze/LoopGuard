@@ -58,3 +58,19 @@ func TestRegisterProgramRejectsUnknownFlag(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func TestRegisterProgramWithInterpreter(t *testing.T) {
+	fe := &fakeExecutor{result: &executor.ExecResult{ExitCode: 0, Stdout: "usage: deploy [--only-print]"}}
+	svc, s := newTestProgramService(t, fe)
+
+	u := &model.User{Username: "appr3", PasswordHash: "h", Role: model.RoleUser}
+	require.NoError(t, s.CreateUser(u))
+
+	p, err := svc.Register(context.Background(), RegisterInput{
+		Project: "demo", Name: "py-deploy", BinaryPath: "/app/deploy.py", Interpreter: "python3",
+		ApproverID: u.ID, TimeoutSec: 60,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "python3", p.Interpreter)
+	require.Equal(t, "/app/deploy.py", p.BinaryPath)
+}

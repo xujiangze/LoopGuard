@@ -25,6 +25,7 @@ type RegisterInput struct {
 	Project      string
 	Name         string
 	BinaryPath   string
+	Interpreter  string
 	ApproverID   uint64
 	TimeoutSec   int
 	ParamsSchema []byte
@@ -39,7 +40,7 @@ func (svc *ProgramService) Register(ctx context.Context, in RegisterInput) (*mod
 	}
 
 	help, err := svc.exec.Run(ctx, executor.ExecRequest{
-		BinaryPath: in.BinaryPath, Args: []string{"--help"}, TimeoutSec: 10,
+		BinaryPath: in.BinaryPath, Interpreter: in.Interpreter, Args: []string{"--help"}, TimeoutSec: 10,
 	})
 	if err != nil {
 		return nil, errors.New("无法执行 --help：" + err.Error())
@@ -55,7 +56,7 @@ func (svc *ProgramService) Register(ctx context.Context, in RegisterInput) (*mod
 		timeout = 300
 	}
 	p := &model.Program{
-		Project: in.Project, Name: in.Name, BinaryPath: in.BinaryPath,
+		Project: in.Project, Name: in.Name, BinaryPath: in.BinaryPath, Interpreter: in.Interpreter,
 		HelpText: combined, ParamsSchema: datatypes.JSON(in.ParamsSchema),
 		ApproverID: in.ApproverID, TimeoutSec: timeout,
 		SupportsDryrun: true, Enabled: true,

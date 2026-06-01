@@ -402,6 +402,11 @@ curl -X POST http://localhost:8080/api/v1/tickets \
   -H "X-API-Key: lg_eb77d3bd1fdec99d36c607a9b5fa8f6f0e10ba50ebef878b" \
   -H "Content-Type: application/json" \
   -d '{"project":"测试项目","name":"a+b","args":{"a":3, "b":4}}'
+  
+curl -X POST http://localhost:8080/api/v1/tickets \
+  -H "X-API-Key: lg_eb77d3bd1fdec99d36c607a9b5fa8f6f0e10ba50ebef878b" \
+  -H "Content-Type: application/json" \
+  -d '{"project":"测试程序","name":"ip屏蔽测试","args":{"--help": ""}}'
 ```
 
 审批人放行后，系统执行 `/usr/local/bin/my-deploy --env prod`（不带 `--only-print`）。

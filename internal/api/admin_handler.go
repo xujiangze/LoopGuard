@@ -85,6 +85,7 @@ func (h *AdminHandler) CreateProgram(c *gin.Context) {
 		Project      string          `json:"project" binding:"required"`
 		Name         string          `json:"name" binding:"required"`
 		BinaryPath   string          `json:"binary_path" binding:"required"`
+		Interpreter  string          `json:"interpreter"`
 		ApproverID   uint64          `json:"approver_id" binding:"required"`
 		TimeoutSec   int             `json:"timeout_sec"`
 		ParamsSchema json.RawMessage `json:"params_schema"`
@@ -94,7 +95,7 @@ func (h *AdminHandler) CreateProgram(c *gin.Context) {
 		return
 	}
 	p, err := h.programs.Register(c.Request.Context(), service.RegisterInput{
-		Project: req.Project, Name: req.Name, BinaryPath: req.BinaryPath,
+		Project: req.Project, Name: req.Name, BinaryPath: req.BinaryPath, Interpreter: req.Interpreter,
 		ApproverID: req.ApproverID, TimeoutSec: req.TimeoutSec, ParamsSchema: req.ParamsSchema,
 	})
 	if err != nil {
@@ -121,13 +122,17 @@ func (h *AdminHandler) UpdateProgram(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Enabled    *bool   `json:"enabled"`
-		ApproverID *uint64 `json:"approver_id"`
-		TimeoutSec *int    `json:"timeout_sec"`
+		Enabled     *bool   `json:"enabled"`
+		Interpreter *string `json:"interpreter"`
+		ApproverID  *uint64 `json:"approver_id"`
+		TimeoutSec  *int    `json:"timeout_sec"`
 	}
 	_ = c.ShouldBindJSON(&req)
 	if req.Enabled != nil {
 		p.Enabled = *req.Enabled
+	}
+	if req.Interpreter != nil {
+		p.Interpreter = *req.Interpreter
 	}
 	if req.ApproverID != nil {
 		p.ApproverID = *req.ApproverID

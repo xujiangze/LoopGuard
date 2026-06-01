@@ -3,12 +3,13 @@ package executor
 import "context"
 
 type ExecRequest struct {
-	BinaryPath string
-	Args       []string
-	DryRun     bool
-	TimeoutSec int
-	WorkDir    string
-	Env        []string
+	BinaryPath  string
+	Interpreter string
+	Args        []string
+	DryRun      bool
+	TimeoutSec  int
+	WorkDir     string
+	Env         []string
 }
 
 type ExecResult struct {

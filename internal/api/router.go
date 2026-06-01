@@ -4,6 +4,9 @@ import (
 	"LoopGuard/internal/config"
 	"LoopGuard/internal/service"
 	"LoopGuard/internal/store"
+	"LoopGuard/web"
+	"io/fs"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -63,5 +66,46 @@ func NewRouter(d Deps) *gin.Engine {
 	adminGrp.DELETE("/api-keys/:id", admin.DeleteAPIKey)
 	adminGrp.PUT("/users/:id/password", admin.ResetPassword)
 
+	// 前端静态文件服务
+	distFS, _ := fs.Sub(web.DistFS, "dist")
+	r.NoRoute(func(c *gin.Context) {
+		// 尝试从嵌入文件系统读取
+		path := c.Request.URL.Path
+		if path == "/" {
+			path = "/index.html"
+		}
+		f, err := distFS.(fs.ReadFileFS).ReadFile(path[1:])
+		if err != nil {
+			// SPA fallback: 非 API、非静态资源请求返回 index.html
+			idx, _ := distFS.(fs.ReadFileFS).ReadFile("index.html")
+			c.Data(http.StatusOK, "text/html; charset=utf-8", idx)
+			return
+		}
+		c.Data(http.StatusOK, mimeByExt(path), f)
+	})
+
 	return r
+}
+
+func mimeByExt(path string) string {
+	switch {
+	case len(path) > 3 && path[len(path)-3:] == ".js":
+		return "application/javascript"
+	case len(path) > 4 && path[len(path)-4:] == ".css":
+		return "text/css"
+	case len(path) > 5 && path[len(path)-5:] == ".html":
+		return "text/html; charset=utf-8"
+	case len(path) > 4 && path[len(path)-4:] == ".svg":
+		return "image/svg+xml"
+	case len(path) > 4 && path[len(path)-4:] == ".png":
+		return "image/png"
+	case len(path) > 4 && path[len(path)-4:] == ".ico":
+		return "image/x-icon"
+	case len(path) > 4 && path[len(path)-4:] == ".wasm":
+		return "application/wasm"
+	case len(path) > 5 && path[len(path)-5:] == ".json":
+		return "application/json"
+	default:
+		return "application/octet-stream"
+	}
 }
