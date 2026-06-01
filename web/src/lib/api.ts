@@ -16,8 +16,11 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken()
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(init?.headers as Record<string, string>),
+  }
+  // upload 时 body 是 FormData，不设 Content-Type（浏览器自动设 boundary）
+  if (!(init?.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json"
   }
   if (token) {
     headers["Authorization"] = `Bearer ${token}`
@@ -48,4 +51,10 @@ export const api = {
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
 
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+
+  upload: <T>(path: string, formData: FormData) =>
+    request<T>(path, { method: "POST", body: formData }),
+
+  uploadPut: <T>(path: string, formData: FormData) =>
+    request<T>(path, { method: "PUT", body: formData }),
 }

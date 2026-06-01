@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { api } from "@/lib/api"
 import type { Program, User } from "@/types"
 import { Button } from "@/components/ui/button"
@@ -23,11 +23,6 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
-interface ParamEntry {
-  key: string
-  desc: string
-}
-
 export function ProgramPage() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -40,12 +35,12 @@ export function ProgramPage() {
   const [form, setForm] = useState({
     project: "",
     name: "",
-    binary_path: "",
+    entry_file: "",
     interpreter: "",
     approver_id: "",
     timeout_sec: "300",
   })
-  const [params, setParams] = useState<ParamEntry[]>([{ key: "", desc: "" }])
+  const [createFiles, setCreateFiles] = useState<FileList | null>(null)
 
   const [editForm, setEditForm] = useState({
     enabled: true,
@@ -53,6 +48,9 @@ export function ProgramPage() {
     approver_id: "",
     timeout_sec: "300",
   })
+  const [editFiles, setEditFiles] = useState<FileList | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const editFileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchData = () => {
     setLoading(true)
@@ -77,29 +75,34 @@ export function ProgramPage() {
   }
 
   const handleCreate = async () => {
-    if (!form.project || !form.name || !form.binary_path || !form.approver_id) {
+    if (!form.project || !form.name || !form.entry_file || !form.interpreter || !form.approver_id) {
       toast.error("请填写所有必填字段")
       return
     }
-    const schema: Record<string, string> = {}
-    for (const p of params) {
-      if (p.key.trim()) schema[p.key.trim()] = p.desc.trim()
+    if (!createFiles || createFiles.length === 0) {
+      toast.error("请上传文件")
+      return
     }
+
+    const fd = new FormData()
+    fd.append("project", form.project)
+    fd.append("name", form.name)
+    fd.append("entry_file", form.entry_file)
+    fd.append("interpreter", form.interpreter)
+    fd.append("approver_id", form.approver_id)
+    fd.append("timeout_sec", form.timeout_sec)
+    for (let i = 0; i < createFiles.length; i++) {
+      fd.append("files", createFiles[i])
+    }
+
     setSubmitting(true)
     try {
-      await api.post("/programs", {
-        project: form.project,
-        name: form.name,
-        binary_path: form.binary_path,
-        interpreter: form.interpreter || "",
-        approver_id: Number(form.approver_id),
-        timeout_sec: Number(form.timeout_sec) || 300,
-        params_schema: Object.keys(schema).length > 0 ? schema : null,
-      })
-      toast.success("程序注册成功", { description: `${form.project}/${form.name} 已添加到白名单` })
+      await api.upload("/programs", fd)
+      toast.success("程序注册成功", { description: `${form.project}/${form.name}` })
       setCreateOpen(false)
-      setForm({ project: "", name: "", binary_path: "", interpreter: "", approver_id: "", timeout_sec: "300" })
-      setParams([{ key: "", desc: "" }])
+      setForm({ project: "", name: "", entry_file: "", interpreter: "", approver_id: "", timeout_sec: "300" })
+      setCreateFiles(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
       fetchData()
     } catch (err) {
       toast.error("创建失败", { description: err instanceof Error ? err.message : "未知错误" })
@@ -111,6 +114,8 @@ export function ProgramPage() {
   const openEdit = (p: Program) => {
     setEditTarget(p)
     setEditForm({ enabled: p.enabled, interpreter: p.interpreter, approver_id: String(p.approver_id), timeout_sec: String(p.timeout_sec) })
+    setEditFiles(null)
+    if (editFileInputRef.current) editFileInputRef.current.value = ""
     setEditOpen(true)
   }
 
@@ -118,12 +123,17 @@ export function ProgramPage() {
     if (!editTarget) return
     setSubmitting(true)
     try {
-      await api.put(`/programs/${editTarget.id}`, {
-        enabled: editForm.enabled,
-        interpreter: editForm.interpreter,
-        approver_id: Number(editForm.approver_id),
-        timeout_sec: Number(editForm.timeout_sec) || 300,
-      })
+      const fd = new FormData()
+      fd.append("enabled", String(editForm.enabled))
+      if (editForm.interpreter) fd.append("interpreter", editForm.interpreter)
+      if (editForm.approver_id) fd.append("approver_id", editForm.approver_id)
+      if (editForm.timeout_sec) fd.append("timeout_sec", editForm.timeout_sec)
+      if (editFiles) {
+        for (let i = 0; i < editFiles.length; i++) {
+          fd.append("files", editFiles[i])
+        }
+      }
+      await api.uploadPut(`/programs/${editTarget.id}`, fd)
       toast.success("程序更新成功")
       setEditOpen(false)
       fetchData()
@@ -136,20 +146,14 @@ export function ProgramPage() {
 
   const toggleEnabled = async (p: Program) => {
     try {
-      await api.put(`/programs/${p.id}`, { enabled: !p.enabled })
+      const fd = new FormData()
+      fd.append("enabled", String(!p.enabled))
+      await api.uploadPut(`/programs/${p.id}`, fd)
       toast.success(p.enabled ? "已禁用" : "已启用", { description: `${p.project}/${p.name}` })
       fetchData()
     } catch (err) {
       toast.error("操作失败", { description: err instanceof Error ? err.message : "未知错误" })
     }
-  }
-
-  const addParam = () => setParams([...params, { key: "", desc: "" }])
-  const removeParam = (idx: number) => setParams(params.filter((_, i) => i !== idx))
-  const updateParam = (idx: number, field: "key" | "desc", value: string) => {
-    const next = [...params]
-    next[idx][field] = value
-    setParams(next)
   }
 
   if (loading) return <p className="text-muted-foreground text-sm">加载中...</p>
@@ -168,6 +172,7 @@ export function ProgramPage() {
           <TableHeader>
             <TableRow>
               <TableHead>项目 / 程序名</TableHead>
+              <TableHead>入口文件</TableHead>
               <TableHead>审批人</TableHead>
               <TableHead className="w-20">超时</TableHead>
               <TableHead className="w-20">状态</TableHead>
@@ -179,8 +184,9 @@ export function ProgramPage() {
               <TableRow key={p.id}>
                 <TableCell>
                   <div className="font-mono font-medium">{p.project}/{p.name}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{p.interpreter ? `${p.interpreter} ${p.binary_path}` : p.binary_path}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{p.interpreter}</div>
                 </TableCell>
+                <TableCell className="font-mono text-sm">{p.entry_file}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
@@ -221,31 +227,29 @@ export function ProgramPage() {
             <DialogTitle>注册新程序</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1">
-            {/* 基本信息 */}
             <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">基本信息</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>项目名 <span className="text-destructive">*</span></Label>
-                  <Input value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} />
+                  <Input placeholder="如 tsunami_ipban" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <Label>程序名 <span className="text-destructive">*</span></Label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <Input placeholder="如 entry_ipban" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
               </div>
               <div className="space-y-1">
-                <Label>二进制路径 <span className="text-destructive">*</span></Label>
-                <Input value={form.binary_path} onChange={(e) => setForm({ ...form, binary_path: e.target.value })} />
+                <Label>入口文件名 <span className="text-destructive">*</span></Label>
+                <Input placeholder="如 entry_ipban.py" value={form.entry_file} onChange={(e) => setForm({ ...form, entry_file: e.target.value })} />
+                <p className="text-xs text-muted-foreground">必须与上传文件中的文件名一致</p>
               </div>
               <div className="space-y-1">
-                <Label>解释器</Label>
-                <Input placeholder="可选，如 python3" value={form.interpreter} onChange={(e) => setForm({ ...form, interpreter: e.target.value })} />
-                <p className="text-xs text-muted-foreground">留空则直接执行二进制，填写后以 &ldquo;解释器 脚本路径&rdquo; 方式执行</p>
+                <Label>解释器 <span className="text-destructive">*</span></Label>
+                <Input placeholder="如 python3、bash、node" value={form.interpreter} onChange={(e) => setForm({ ...form, interpreter: e.target.value })} />
               </div>
             </div>
 
-            {/* 审批配置 */}
             <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">审批配置</p>
               <div className="space-y-1">
@@ -260,7 +264,6 @@ export function ProgramPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">此程序的执行工单将自动分配给该审批人</p>
               </div>
               <div className="space-y-1">
                 <Label>超时时间</Label>
@@ -271,33 +274,19 @@ export function ProgramPage() {
               </div>
             </div>
 
-            {/* 参数白名单 */}
             <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">参数白名单</p>
-                <span className="text-xs text-muted-foreground">可选</span>
-              </div>
-              <p className="text-xs text-muted-foreground">定义 AI 提交工单时可传的参数名称，不在白名单中的参数将被拒绝</p>
-              {params.map((p, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <Input
-                    className="flex-1"
-                    placeholder="参数名"
-                    value={p.key}
-                    onChange={(e) => updateParam(idx, "key", e.target.value)}
-                  />
-                  <Input
-                    className="flex-[2]"
-                    placeholder="说明"
-                    value={p.desc}
-                    onChange={(e) => updateParam(idx, "desc", e.target.value)}
-                  />
-                  <Button variant="ghost" size="sm" className="text-destructive px-2" onClick={() => removeParam(idx)} disabled={params.length <= 1}>
-                    ✕
-                  </Button>
-                </div>
-              ))}
-              <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addParam}>+ 添加参数</Button>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">上传文件 <span className="text-destructive">*</span></p>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => setCreateFiles(e.target.files)}
+              />
+              {createFiles && (
+                <p className="text-xs text-muted-foreground">
+                  已选择 {createFiles.length} 个文件: {Array.from(createFiles).map((f) => f.name).join(", ")}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -328,8 +317,7 @@ export function ProgramPage() {
             </div>
             <div className="space-y-1">
               <Label>解释器</Label>
-              <Input placeholder="可选，如 python3" value={editForm.interpreter} onChange={(e) => setEditForm({ ...editForm, interpreter: e.target.value })} />
-              <p className="text-xs text-muted-foreground">留空则直接执行二进制</p>
+              <Input placeholder="如 python3" value={editForm.interpreter} onChange={(e) => setEditForm({ ...editForm, interpreter: e.target.value })} />
             </div>
             <div className="space-y-1">
               <Label>审批人</Label>
@@ -347,6 +335,20 @@ export function ProgramPage() {
             <div className="space-y-1">
               <Label>超时（秒）</Label>
               <Input type="number" value={editForm.timeout_sec} onChange={(e) => setEditForm({ ...editForm, timeout_sec: e.target.value })} />
+            </div>
+            <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">更新文件（可选）</p>
+              <Input
+                ref={editFileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => setEditFiles(e.target.files)}
+              />
+              {editFiles && (
+                <p className="text-xs text-muted-foreground">
+                  已选择 {editFiles.length} 个文件，上传后将替换全部现有文件
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>

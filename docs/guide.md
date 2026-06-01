@@ -404,9 +404,9 @@ curl -X POST http://localhost:8080/api/v1/tickets \
   -d '{"project":"测试项目","name":"a+b","args":{"a":3, "b":4}}'
   
 curl -X POST http://localhost:8080/api/v1/tickets \
-  -H "X-API-Key: lg_eb77d3bd1fdec99d36c607a9b5fa8f6f0e10ba50ebef878b" \
+  -H "X-API-Key: lg_775e92a40200e1a06c4cb6eb089289859981c0a153822236" \
   -H "Content-Type: application/json" \
-  -d '{"project":"测试程序","name":"ip屏蔽测试","args":{"--help": ""}}'
+  -d '{"project":"tsunami_ipban","name":"entry_ipban.py","args":{"-m": "group_unban", "-e": "never", "-i":"9.8.7.6", "-u":"huayang", "-g":"huayangblacklist", "--skip-confirm": ""}}'
 ```
 
 审批人放行后，系统执行 `/usr/local/bin/my-deploy --env prod`（不带 `--only-print`）。

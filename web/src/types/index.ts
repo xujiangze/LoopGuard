@@ -20,7 +20,7 @@ export interface User {
 export interface Ticket {
   id: number
   program_id: number
-  args: Record<string, unknown>
+  args: string[]
   status: TicketStatus
   submitted_by: number
   approver_id: number
@@ -37,15 +37,15 @@ export interface Program {
   id: number
   project: string
   name: string
-  binary_path: string
+  entry_file: string
   interpreter: string
   help_text: string
-  params_schema: Record<string, unknown> | null
   approver_id: number
   timeout_sec: number
   supports_dryrun: boolean
   enabled: boolean
   created_at: string
+  updated_at: string
 }
 
 export interface APIKey {
